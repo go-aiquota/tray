@@ -17,6 +17,13 @@ import (
 type Actions struct {
 	// AddAccount opens the onboarding window for a new account.
 	AddAccount func()
+	// LockNow discards every cached credential (app.CredentialCache.Lock),
+	// so the next poll of a Touch-ID-gated account prompts again instead of
+	// reusing the copy the tray has held since it last asked. It has
+	// nothing to do with the OS keychain itself — an account's credential
+	// was never unprotected on disk — only with how long THIS PROCESS
+	// trusts a copy it already asked permission for.
+	LockNow func()
 	// Quit ends the application.
 	Quit func()
 }
@@ -37,6 +44,7 @@ func BuildMenu(accounts []AccountStatus, t Thresholds, actions Actions) *tray.Me
 	}
 	m.Add(tray.Separator())
 	m.Add(tray.Item("Add account…", orNoop(actions.AddAccount)))
+	m.Add(tray.Item("Lock now", orNoop(actions.LockNow)))
 	m.Add(tray.Item("Quit", orNoop(actions.Quit)))
 	return m
 }

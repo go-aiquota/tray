@@ -76,25 +76,31 @@ func TestBuildMenuTrailingActionsAlwaysPresent(t *testing.T) {
 	if last.Label != "Quit" {
 		t.Fatalf("last row = %q, want \"Quit\"", last.Label)
 	}
-	addIdx := len(m.Items) - 2
+	lockIdx := len(m.Items) - 2
+	if m.Items[lockIdx].Label != "Lock now" {
+		t.Fatalf("second-to-last row = %q, want \"Lock now\"", m.Items[lockIdx].Label)
+	}
+	addIdx := len(m.Items) - 3
 	if m.Items[addIdx].Label != "Add account…" {
-		t.Fatalf("second-to-last row = %q, want \"Add account…\"", m.Items[addIdx].Label)
+		t.Fatalf("third-to-last row = %q, want \"Add account…\"", m.Items[addIdx].Label)
 	}
 }
 
 func TestBuildMenuActionsFireTheGivenCallbacks(t *testing.T) {
-	var addCalled, quitCalled bool
+	var addCalled, lockCalled, quitCalled bool
 	m := BuildMenu(nil, DefaultThresholds, Actions{
 		AddAccount: func() { addCalled = true },
+		LockNow:    func() { lockCalled = true },
 		Quit:       func() { quitCalled = true },
 	})
 	for _, it := range m.Items {
-		if it.Label == "Add account…" || it.Label == "Quit" {
+		switch it.Label {
+		case "Add account…", "Lock now", "Quit":
 			it.Activate()
 		}
 	}
-	if !addCalled || !quitCalled {
-		t.Fatalf("addCalled=%v quitCalled=%v, want both true", addCalled, quitCalled)
+	if !addCalled || !lockCalled || !quitCalled {
+		t.Fatalf("addCalled=%v lockCalled=%v quitCalled=%v, want all true", addCalled, lockCalled, quitCalled)
 	}
 }
 

@@ -7,6 +7,7 @@ require (
 	github.com/go-keyring/keyring v0.3.0
 	github.com/go-webengine/browserproxy v0.0.0-20260902185530-047ea0a744e1
 	github.com/go-webengine/engine v0.3.12-0.20260903142529-4ef49d77f4d4
+	github.com/go-widgets/application v0.2.1-0.20260901150807-ef34e25d01e7
 	github.com/go-widgets/mvvm v0.9.0
 	github.com/go-widgets/painter v0.12.0
 	github.com/go-widgets/toolkit v0.301.0
@@ -30,9 +31,12 @@ require (
 	github.com/go-crdt/collab v0.37.0 // indirect
 	github.com/go-crdt/crdt v0.39.0 // indirect
 	github.com/go-freedesktop/secretservice v0.1.0 // indirect
+	github.com/go-freedesktop/x11 v0.2.0 // indirect
 	github.com/go-gfx/gfx v0.19.0 // indirect
+	github.com/go-gtk/gtk4 v0.3.0 // indirect
 	github.com/go-icons/iconoir v0.2.0 // indirect
 	github.com/go-images/images v0.0.0-20260831115433-23d959d868e3 // indirect
+	github.com/go-macos/appkit v0.1.0 // indirect
 	github.com/go-macos/keychain v0.1.0 // indirect
 	github.com/go-macos/objc v0.9.1 // indirect
 	github.com/go-mswin/win32 v0.4.0 // indirect
@@ -43,6 +47,8 @@ require (
 	github.com/go-sourcemap/sourcemap v2.1.4+incompatible // indirect
 	github.com/go-typeset/bidi v0.3.0 // indirect
 	github.com/go-webengine/esbuildsandbox v0.1.0 // indirect
+	github.com/go-widgets/android v0.13.1 // indirect
+	github.com/go-widgets/window v0.64.0 // indirect
 	github.com/godbus/dbus/v5 v5.2.2 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/pprof v0.0.0-20240727154555-813a5fbdbec8 // indirect
