@@ -96,7 +96,7 @@ func newLoginServer(t *testing.T) *httptest.Server {
 
 func TestOnboardingWindowFullLoginFlow(t *testing.T) {
 	srv := newLoginServer(t)
-	win, err := openWith(context.Background(), engine.New(), srv.URL+"/login-form", 400, 400)
+	win, err := OpenWith(context.Background(), engine.New(), srv.URL+"/login-form", 400, 400)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -134,7 +134,7 @@ func TestOnboardingWindowFullLoginFlow(t *testing.T) {
 
 func TestOnboardingWindowWrongPasswordNoCookie(t *testing.T) {
 	srv := newLoginServer(t)
-	win, err := openWith(context.Background(), engine.New(), srv.URL+"/login-form", 400, 400)
+	win, err := OpenWith(context.Background(), engine.New(), srv.URL+"/login-form", 400, 400)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -157,7 +157,7 @@ func TestOnboardingWindowWrongPasswordNoCookie(t *testing.T) {
 
 func TestOnboardingWindowBackspaceFixesATypo(t *testing.T) {
 	srv := newLoginServer(t)
-	win, err := openWith(context.Background(), engine.New(), srv.URL+"/login-form", 400, 400)
+	win, err := OpenWith(context.Background(), engine.New(), srv.URL+"/login-form", 400, 400)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -183,7 +183,7 @@ func TestOnboardingWindowBackspaceFixesATypo(t *testing.T) {
 
 func TestOnboardingWindowKeyBeforeAnyClickIsDropped(t *testing.T) {
 	srv := newLoginServer(t)
-	win, err := openWith(context.Background(), engine.New(), srv.URL+"/login-form", 400, 400)
+	win, err := OpenWith(context.Background(), engine.New(), srv.URL+"/login-form", 400, 400)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -197,7 +197,7 @@ func TestOnboardingWindowKeyBeforeAnyClickIsDropped(t *testing.T) {
 
 func TestOnboardingWindowScrollClampsToContent(t *testing.T) {
 	srv := newLoginServer(t)
-	win, err := openWith(context.Background(), engine.New(), srv.URL+"/login-form", 400, 400)
+	win, err := OpenWith(context.Background(), engine.New(), srv.URL+"/login-form", 400, 400)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -215,7 +215,7 @@ func TestOnboardingWindowScrollClampsToContent(t *testing.T) {
 
 func TestOnboardingWindowResizeIsANoop(t *testing.T) {
 	srv := newLoginServer(t)
-	win, err := openWith(context.Background(), engine.New(), srv.URL+"/login-form", 400, 400)
+	win, err := OpenWith(context.Background(), engine.New(), srv.URL+"/login-form", 400, 400)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -230,7 +230,7 @@ func TestOnboardingWindowResizeIsANoop(t *testing.T) {
 
 func TestOnboardingWindowMouseUpAndMoveAreNoops(t *testing.T) {
 	srv := newLoginServer(t)
-	win, err := openWith(context.Background(), engine.New(), srv.URL+"/login-form", 400, 400)
+	win, err := OpenWith(context.Background(), engine.New(), srv.URL+"/login-form", 400, 400)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -266,7 +266,7 @@ func TestOnboardingWindowDefaultTypeButtonSubmits(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
-	win, err := openWith(context.Background(), engine.New(), srv.URL+"/form", 400, 400)
+	win, err := OpenWith(context.Background(), engine.New(), srv.URL+"/form", 400, 400)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -284,7 +284,7 @@ func TestOnboardingWindowDefaultTypeButtonSubmits(t *testing.T) {
 // element at all (must not panic, must not change focus).
 func TestOnboardingWindowMouseDownMiss(t *testing.T) {
 	srv := newLoginServer(t)
-	win, err := openWith(context.Background(), engine.New(), srv.URL+"/login-form", 400, 400)
+	win, err := OpenWith(context.Background(), engine.New(), srv.URL+"/login-form", 400, 400)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

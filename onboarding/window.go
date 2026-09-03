@@ -46,15 +46,18 @@ type Window struct {
 func Open(ctx context.Context, loginURL string, w, h int) (*Window, error) {
 	eng := engine.New()
 	eng.Client = browserproxy.GuardedClient(eng.Client)
-	return openWith(ctx, eng, loginURL, w, h)
+	return OpenWith(ctx, eng, loginURL, w, h)
 }
 
-// openWith is Open's guts, taking an already-constructed engine — the seam
-// window_test.go uses to test against a local httptest server, which the
-// SSRF guard correctly refuses (loopback is exactly what it exists to
-// block for a REAL provider login). Every other Window behavior is
-// identical either way; only which engine/client backs it differs.
-func openWith(ctx context.Context, eng *engine.Engine, loginURL string, w, h int) (*Window, error) {
+// OpenWith is Open's guts, taking an already-constructed engine. It serves
+// two callers: window_test.go, testing against a local httptest server the
+// SSRF guard would correctly refuse (loopback is exactly what it exists to
+// block for a REAL provider login) — and any caller that needs the SAME
+// isolated, coordinate-driven login window but with its own engine, e.g.
+// one whose Client.Transport has been wrapped to observe requests (see
+// cmd/aiquota-capture). Every other Window behavior is identical either
+// way; only which engine/client backs it differs.
+func OpenWith(ctx context.Context, eng *engine.Engine, loginURL string, w, h int) (*Window, error) {
 	live, err := eng.Open(ctx, loginURL, image.Rect(0, 0, w, h))
 	if err != nil {
 		return nil, err
