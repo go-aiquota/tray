@@ -67,21 +67,6 @@ const (
 
 func main() { os.Exit(run()) }
 
-// menuAction is what a click on a non-account tray row means. It travels
-// through a channel rather than running its OnClick body directly: OnClick
-// fires from the backend's own event handling, off the locked main thread
-// that (*menubar.Tray).Hold occupies, and both opening a window and
-// stopping Hold's loop must happen from the goroutine that called Hold —
-// see (*Tray).Hold's own doc comment.
-type menuAction int
-
-const (
-	actionNone menuAction = iota
-	actionAddAccount
-	actionLockNow
-	actionQuit
-)
-
 func run() int {
 	path, err := account.DefaultPath()
 	if err != nil {
@@ -93,12 +78,12 @@ func run() int {
 	defer manager.Close()
 	cache := app.NewCredentialCache(store.Credential)
 
-	actions := make(chan menuAction, 4)
-	send := func(a menuAction) {
+	actions := make(chan app.Action, 4)
+	send := func(a app.Action) {
 		select {
 		case actions <- a:
 		default:
-			log.Printf("aiquota-tray: %v was chosen while the tray was not listening; dropped", a)
+			log.Printf("aiquota-tray: an action was chosen while the tray was not listening; dropped")
 		}
 	}
 
@@ -108,9 +93,9 @@ func run() int {
 
 	buildMenu := func() *tray.Menu {
 		return menubar.BuildMenu(current, thresholds, menubar.Actions{
-			AddAccount: func() { send(actionAddAccount) },
-			LockNow:    func() { send(actionLockNow) },
-			Quit:       func() { send(actionQuit) },
+			AddAccount: func() { send(app.ActionAddAccount) },
+			LockNow:    func() { send(app.ActionLockNow) },
+			Quit:       func() { send(app.ActionQuit) },
 		})
 	}
 
@@ -152,36 +137,17 @@ func run() int {
 		}
 	}()
 
-	// The tray owns the platform run loop while no window is open — Hold
-	// blocks on it — and gives it up (Release) only to open the onboarding
-	// window, which then drives its own loop for as long as it's up. See
-	// (*menubar.Tray)'s doc comment and go-xrkit/desk/traydesk.go, the
-	// precedent this mirrors.
-	for {
-		got := actionNone
-		done := make(chan struct{})
-		go func() {
-			defer close(done)
-			got = <-actions
-			item.Release()
-		}()
-		if err := item.Hold(); err != nil {
-			log.Printf("aiquota-tray: tray: %v", err)
-		}
-		<-done
-
-		switch got {
-		case actionQuit:
-			return 0
-		case actionLockNow:
-			cache.Lock()
-		case actionAddAccount:
+	app.Loop(item, actions, app.Handlers{
+		OnHoldError: func(err error) { log.Printf("aiquota-tray: tray: %v", err) },
+		OnLockNow:   cache.Lock,
+		OnAddAccount: func() {
 			if err := addAccount(store); err != nil {
 				log.Printf("aiquota-tray: adding account: %v", err)
 			}
 			refresh()
-		}
-	}
+		},
+	})
+	return 0
 }
 
 // addAccount opens the onboarding window, waits for it to close, and — if
