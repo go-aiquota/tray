@@ -7,13 +7,15 @@ require (
 	github.com/go-keyring/keyring v0.3.0
 	github.com/go-webengine/browserproxy v0.0.0-20260902185530-047ea0a744e1
 	github.com/go-webengine/engine v0.3.12-0.20260903142529-4ef49d77f4d4
+	github.com/go-widgets/painter v0.12.0
+	github.com/go-widgets/toolkit v0.301.0
 	github.com/hashicorp/go-plugin v1.8.0
 )
 
 require (
 	github.com/ajroetker/go-highway v0.0.4 // indirect
 	github.com/ajroetker/go-jpeg2000 v0.0.2 // indirect
-	github.com/andybalholm/brotli v1.0.6 // indirect
+	github.com/andybalholm/brotli v1.2.3 // indirect
 	github.com/breml/rootcerts v0.3.7 // indirect
 	github.com/coder/websocket v1.8.15 // indirect
 	github.com/danieljoos/wincred v1.2.3 // indirect
@@ -23,16 +25,22 @@ require (
 	github.com/evanw/esbuild v0.28.2 // indirect
 	github.com/fatih/color v1.13.0 // indirect
 	github.com/go-browserhttp/browserhttp v0.2.0 // indirect
+	github.com/go-crdt/collab v0.37.0 // indirect
+	github.com/go-crdt/crdt v0.39.0 // indirect
 	github.com/go-freedesktop/secretservice v0.1.0 // indirect
 	github.com/go-gfx/gfx v0.19.0 // indirect
-	github.com/go-images/images v0.0.0-20260814204114-5f83e6345a72 // indirect
+	github.com/go-icons/iconoir v0.2.0 // indirect
+	github.com/go-images/images v0.0.0-20260831115433-23d959d868e3 // indirect
 	github.com/go-macos/keychain v0.1.0 // indirect
 	github.com/go-macos/objc v0.9.1 // indirect
-	github.com/go-opentype/fonts v0.5.0 // indirect
-	github.com/go-opentype/opentype v0.5.0 // indirect
+	github.com/go-opentype/fonts v0.9.0 // indirect
+	github.com/go-opentype/opentype v0.12.0 // indirect
+	github.com/go-opentype/shape v0.5.0 // indirect
+	github.com/go-richdoc/richdoc v0.3.0 // indirect
 	github.com/go-sourcemap/sourcemap v2.1.4+incompatible // indirect
+	github.com/go-typeset/bidi v0.3.0 // indirect
 	github.com/go-webengine/esbuildsandbox v0.1.0 // indirect
-	github.com/go-widgets/painter v0.12.0 // indirect
+	github.com/go-widgets/mvvm v0.9.0 // indirect
 	github.com/godbus/dbus/v5 v5.2.2 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/pprof v0.0.0-20240727154555-813a5fbdbec8 // indirect
