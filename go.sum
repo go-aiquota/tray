@@ -94,8 +94,8 @@ github.com/go-widgets/painter v0.12.0 h1:gMqTVbIbGSKmaE28NKsbbKdNIk2drupNMNuLjFP
 github.com/go-widgets/painter v0.12.0/go.mod h1:IPRLqdUJuJX8sfuHeYLZCzjoLvA0ApbOlyIAVmguJDQ=
 github.com/go-widgets/toolkit v0.301.0 h1:ymKltlmsMiMIHDObIiljo2umNF+ArbTmLD/Dg/9AYNw=
 github.com/go-widgets/toolkit v0.301.0/go.mod h1:NMj7CghnZKC+L9BRaAcKjykewTChSFuuTuVH+2wDjV4=
-github.com/go-widgets/tray v0.8.0 h1:8/86f5NeAEBG/9dEEuKvCpyO3SViHb9tQLGMZ9+AQ60=
-github.com/go-widgets/tray v0.8.0/go.mod h1:N85EGfHbMo1SxX6BH1tlnOJpIP26MP7rKemLNVtcDf8=
+github.com/go-widgets/tray v0.8.1-0.20260903195946-9fcba7488191 h1:rZaMgIXlM6aUar9fBhi6i8ozXklNWfJ9sjx4wTf1gyg=
+github.com/go-widgets/tray v0.8.1-0.20260903195946-9fcba7488191/go.mod h1:N85EGfHbMo1SxX6BH1tlnOJpIP26MP7rKemLNVtcDf8=
 github.com/go-widgets/window v0.64.0 h1:d65yDR0f1FUthm+qDrRosz3M1a7DTgwV5NPXYATfoHs=
 github.com/go-widgets/window v0.64.0/go.mod h1:+QY3dIvgfbwyk64/HRCqYf89M2TAesBUKp4iRWbRscE=
 github.com/goccy/go-yaml v1.19.2 h1:PmFC1S6h8ljIz6gMRBopkjP1TVT7xuwrButHID66PoM=

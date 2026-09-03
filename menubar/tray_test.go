@@ -96,6 +96,24 @@ func TestSetMenuReplacesTheMenu(t *testing.T) {
 	})
 }
 
+func TestOnReadyFiresOnceHoldStarts(t *testing.T) {
+	state := mvvm.NewObservable(SeverityOK)
+	item, h := openHeadless(t, state, tray.NewMenu())
+	t.Cleanup(func() { _ = item.Close() })
+
+	ready := make(chan struct{}, 1)
+	item.OnReady(func() { close(ready) })
+
+	go func() { _ = item.Hold() }()
+	waitUntilStarted(t, h)
+
+	select {
+	case <-ready:
+	case <-time.After(2 * time.Second):
+		t.Fatal("OnReady never fired after Hold started")
+	}
+}
+
 func TestAttachWithoutAttachCapableBackendErrors(t *testing.T) {
 	state := mvvm.NewObservable(SeverityOK)
 	item, _ := openHeadless(t, state, tray.NewMenu()) // Headless does not implement attaching

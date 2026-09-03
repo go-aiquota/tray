@@ -24,11 +24,8 @@ import (
 	"github.com/go-aiquota/tray/account"
 	"github.com/go-aiquota/tray/app"
 	"github.com/go-aiquota/tray/menubar"
-	"github.com/go-aiquota/tray/onboarding"
 	"github.com/go-aiquota/tray/quota"
-	"github.com/go-widgets/application"
 	"github.com/go-widgets/mvvm"
-	"github.com/go-widgets/tray"
 )
 
 // init locks the main goroutine to the process's main OS thread before
@@ -51,13 +48,25 @@ const (
 	// own plugin will eventually call; onboarding only ever drives this
 	// page, never that endpoint.
 	loginURL = "https://claude.ai/login"
-	// cookieDomain is what onboarding.Window.Cookies is asked for after a
-	// login: the WHOLE cookie jar for the domain, not one named cookie —
-	// this program does not know which cookie claude.ai actually uses for
-	// a session, and guessing its name would be worse than storing a few
-	// extra harmless ones. The plugin that reads them back decides which
-	// it needs.
+	// cookieDomain is what the onboarding step is asked for cookies of
+	// after a login: the WHOLE cookie jar for the domain, not one named
+	// cookie — this program does not know which cookie claude.ai actually
+	// uses for a session, and guessing its name would be worse than
+	// storing a few extra harmless ones. The plugin that reads them back
+	// decides which it needs.
 	cookieDomain = "claude.ai"
+
+	// orgUUIDCredentialKey is the one non-cookie field plugin-claude's
+	// FetchQuota needs alongside the cookie jar (see its own provider.go
+	// for why: there is no page a scripted client can hit to rediscover an
+	// org's UUID from cookies alone). Duplicated as a literal in both
+	// repos deliberately, not hoisted into go-aiquota/proto's shared
+	// contract — it is a claude-specific extension of Credential, per that
+	// message's own doc comment ("or other credential fields for a future
+	// non-cookie provider"), not part of the generic host/plugin contract
+	// every provider shares. Keep this in sync with plugin-claude's own
+	// orgUUIDKey if either changes.
+	orgUUIDCredentialKey = "org_uuid"
 
 	pollInterval  = 5 * time.Minute
 	pollTimeout   = 20 * time.Second
@@ -89,38 +98,67 @@ func run() int {
 
 	thresholds := menubar.DefaultThresholds
 	state := mvvm.NewObservable(menubar.SeverityUnknown)
-	var current []menubar.AccountStatus
 
-	buildMenu := func() *tray.Menu {
-		return menubar.BuildMenu(current, thresholds, menubar.Actions{
-			AddAccount: func() { send(app.ActionAddAccount) },
-			LockNow:    func() { send(app.ActionLockNow) },
-			Quit:       func() { send(app.ActionQuit) },
-		})
+	// Shared by the control item's own menu AND every per-account item's
+	// menu (see AccountItems) — one set of callbacks, so "Quit" or "Add
+	// account…" does the same thing no matter which icon a person clicked.
+	sharedActions := menubar.Actions{
+		AddAccount: func() { send(app.ActionAddAccount) },
+		LockNow:    func() { send(app.ActionLockNow) },
+		Quit:       func() { send(app.ActionQuit) },
 	}
 
-	item, err := menubar.Open(state, buildMenu())
+	item, err := menubar.Open(state, menubar.BuildMenu(nil, thresholds, sharedActions))
 	if err != nil {
 		log.Printf("aiquota-tray: %v", err)
 		return 1
 	}
 	defer func() { _ = item.Close() }()
 
+	// One tray item PER ACCOUNT, showing its usage as text directly in the
+	// menu bar (a Stats-style display) — Attached to the SAME platform loop
+	// the control item above Holds. Sync must not run until that loop
+	// actually exists (see menubar.Tray.OnReady's own doc comment), which
+	// is why refresh (below) is wired to OnReady rather than called here
+	// directly.
+	accountItems := menubar.NewAccountItems(sharedActions, thresholds)
+	defer accountItems.Close()
+
+	// refresh builds every menu straight from THIS call's own statuses
+	// rather than a shared variable read back later: it is called from more
+	// than one goroutine (the ticker below, and whatever goroutine handles
+	// OnAddAccount), and a shared mutable "current accounts" slice would be
+	// a data race between two such calls with nothing here to prevent it.
 	refresh := func() {
 		ctx, cancel := context.WithTimeout(context.Background(), pollInterval)
 		defer cancel()
 		statuses, err := app.PollAccounts(ctx, store, manager, cache, pollTimeout)
 		if err != nil {
-			// Kept: current stays whatever it last was, rather than being
-			// wiped by a transient accounts.json read hiccup.
+			// Nothing is applied: whatever the tray last showed stays,
+			// rather than being wiped by a transient accounts.json read
+			// hiccup.
 			log.Printf("aiquota-tray: polling accounts: %v", err)
 			return
 		}
-		current = statuses
-		state.Set(menubar.Aggregate(current, thresholds))
-		item.SetMenu(buildMenu())
+		state.Set(menubar.Aggregate(statuses, thresholds))
+		item.SetMenu(menubar.BuildMenu(statuses, thresholds, sharedActions))
+		if err := accountItems.Sync(statuses); err != nil {
+			log.Printf("aiquota-tray: syncing per-account tray items: %v", err)
+		}
 	}
-	refresh()
+	// Backgrounded, not called directly: OnReady fires SYNCHRONOUSLY, on the
+	// main thread, from INSIDE the same call that creates the status item
+	// and BEFORE Hold's Run reaches -[NSApplication finishLaunching] or
+	// starts pumping the run loop at all. Measured: calling refresh()
+	// (network I/O — a plugin subprocess launch, a gRPC handshake, an HTTPS
+	// fetch) directly here delayed that by long enough that the status
+	// item never actually appeared in the real menu bar (confirmed absent
+	// from the accessibility tree too, not just visually crowded out) —
+	// even with per-account items disabled, so it was this delay itself,
+	// not anything about them. A goroutine lets Run reach finishLaunching
+	// and start the loop immediately; the first real refresh lands moments
+	// later, once something is actually there to update.
+	item.OnReady(func() { go refresh() })
 
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
@@ -150,26 +188,16 @@ func run() int {
 	return 0
 }
 
-// addAccount opens the onboarding window, waits for it to close, and — if
-// the site actually set a cookie — stores the new account. A closed window
+// addAccount opens the onboarding window (see openOnboarding, which picks
+// the platform-appropriate mechanism), waits for it to close, and — if the
+// site actually set a cookie — stores the new account. A closed window
 // with no cookie (the person cancelled, or the login failed) adds nothing;
 // that's not an error worth logging as one.
 func addAccount(store *account.Store) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-	defer cancel()
-	win, err := onboarding.Open(ctx, loginURL, onboardWidth, onboardHeight)
+	cookies, err := openOnboarding(loginURL, cookieDomain, onboardWidth, onboardHeight)
 	if err != nil {
-		return fmt.Errorf("opening the login window: %w", err)
+		return err
 	}
-	defer win.Close()
-
-	spec := application.Spec{Name: "AI Quota", Identifier: "com.go-aiquota.tray", Version: "0.1.0"}
-	cfg := application.Config{Title: "Sign in", Width: onboardWidth, Height: onboardHeight}
-	if err := application.Run(spec, cfg, win, nil); err != nil {
-		return fmt.Errorf("running the login window: %w", err)
-	}
-
-	cookies := win.Cookies(cookieDomain)
 	if len(cookies) == 0 {
 		return nil
 	}

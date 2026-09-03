@@ -55,6 +55,23 @@ func Open(state *mvvm.Observable[Severity], menu *tray.Menu) (*Tray, error) {
 // SetMenu replaces the tray's menu (e.g. after the account list changes).
 func (t *Tray) SetMenu(m *tray.Menu) { t.t.SetMenu(m) }
 
+// OnReady registers fn to run once this tray's platform loop is actually
+// live — Hold has started it, or Attach has joined a host's already-running
+// one. It must be set before Hold/Attach.
+//
+// This is the one moment a caller can safely Attach an ADDITIONAL item
+// (see menubar.AccountItems) of their own: Attach's underlying prepare
+// step still works before any loop exists (go-widgets/tray's runOnMain
+// runs inline on the main thread), but doing it from the goroutine that is
+// about to call Hold, before Hold has run at all, races the shared
+// NSApplication's very first setup against Hold's own — fn runs
+// synchronously on the main thread during that setup instead, after it,
+// where the ordering is no longer ambiguous.
+func (t *Tray) OnReady(fn func()) *Tray {
+	t.t.OnReady(fn)
+	return t
+}
+
 // Hold runs the item and the platform's main loop, returning when Release is
 // called. Use it when nothing else is driving the platform loop yet (no
 // window open) — it must be called on the main thread.

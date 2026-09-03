@@ -5,13 +5,14 @@ go 1.26.4
 require (
 	github.com/go-aiquota/proto v0.0.0-20260902110135-1c3310ee7d88
 	github.com/go-keyring/keyring v0.3.0
+	github.com/go-macos/objc v0.9.1
 	github.com/go-webengine/browserproxy v0.0.0-20260902185530-047ea0a744e1
 	github.com/go-webengine/engine v0.3.12-0.20260903142529-4ef49d77f4d4
 	github.com/go-widgets/application v0.2.1-0.20260901150807-ef34e25d01e7
 	github.com/go-widgets/mvvm v0.9.0
 	github.com/go-widgets/painter v0.12.0
 	github.com/go-widgets/toolkit v0.301.0
-	github.com/go-widgets/tray v0.8.0
+	github.com/go-widgets/tray v0.8.1-0.20260903195946-9fcba7488191
 	github.com/hashicorp/go-plugin v1.8.0
 )
 
@@ -38,7 +39,6 @@ require (
 	github.com/go-images/images v0.0.0-20260831115433-23d959d868e3 // indirect
 	github.com/go-macos/appkit v0.1.0 // indirect
 	github.com/go-macos/keychain v0.1.0 // indirect
-	github.com/go-macos/objc v0.9.1 // indirect
 	github.com/go-mswin/win32 v0.4.0 // indirect
 	github.com/go-opentype/fonts v0.9.0 // indirect
 	github.com/go-opentype/opentype v0.12.0 // indirect
