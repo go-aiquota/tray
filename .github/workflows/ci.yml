@@ -18,6 +18,15 @@ jobs:
       matrix:
         os: [macos-latest, windows-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        # pwsh (the Windows default shell) mis-tokenizes an unquoted
+        # -flag=value.ext argument on this runner (observed:
+        # "-coverprofile=cover.out" split into "-coverprofile=cover" and a
+        # bare ".out", which go test then tried to import as a package) —
+        # bash (Git for Windows, present on every GitHub-hosted Windows
+        # runner) sidesteps it and matches the other two OSes' shell.
+        shell: bash
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
