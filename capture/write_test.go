@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -55,6 +56,9 @@ func TestWriteEntriesCreatesTheDirectory(t *testing.T) {
 }
 
 func TestWriteEntriesIsPrivate(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows has no POSIX group/other permission bits to assert on; os.WriteFile's mode is not observable the same way")
+	}
 	dir := t.TempDir()
 	path, err := WriteEntries(dir, []Entry{{URL: "x"}})
 	if err != nil {
