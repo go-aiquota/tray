@@ -1,4 +1,10 @@
+<p align="center"><img src="https://raw.githubusercontent.com/go-aiquota/brand/main/social/go-aiquota.png" alt="go-aiquota/tray" width="720"></p>
+
 # go-aiquota / tray
+
+[![CI](https://github.com/go-aiquota/tray/actions/workflows/ci.yml/badge.svg)](https://github.com/go-aiquota/tray/actions/workflows/ci.yml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/go-aiquota/tray.svg)](https://pkg.go.dev/github.com/go-aiquota/tray)
+[![License: BSD-3-Clause](https://img.shields.io/badge/License-BSD--3--Clause-blue.svg)](LICENSE)
 
 A cross-platform menu-bar app that monitors AI usage quotas (session/weekly
 limits) across multiple accounts in parallel — Claude Max, Claude Team
