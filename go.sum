@@ -56,6 +56,8 @@ github.com/go-macos/keychain v0.1.0 h1:QkKT97eeJ5m/FloDcoi4UmxIvZIosIwinRjexs3ic
 github.com/go-macos/keychain v0.1.0/go.mod h1:sR+WtyxxCqldTpbPizjLa/pFd0RPme+VSa5C3Qa4NE8=
 github.com/go-macos/objc v0.9.1 h1:GGBoj8aMijBCYNPjGAYS4neeA3lWa8/JEIF1K5GswDo=
 github.com/go-macos/objc v0.9.1/go.mod h1:00GJyieLzPcb65rPLVWNPPUCVm79nmmiEXUDsslRpOs=
+github.com/go-mswin/win32 v0.4.0 h1:0JAvm3XNMxOyfYX1anbtAqxNvxvUA0DZ1SyAUinhMa0=
+github.com/go-mswin/win32 v0.4.0/go.mod h1:ypmW4zosl3mXhy0O39EDbHk+AUjgaXGyFgY5UpX3AxI=
 github.com/go-opentype/fonts v0.9.0 h1:slB6OB3riLyUPrOxqXe0s6/AzdenF1TDvCN8N87hhQk=
 github.com/go-opentype/fonts v0.9.0/go.mod h1:C6yQL2apHItfEZ5hztpsHF0S5mlX/hklLlq/Z5fRG/g=
 github.com/go-opentype/opentype v0.12.0 h1:wBlcDi+3ZaNZXEt5z+Ixr11/cYYwi5W+jX6yTl/qr1I=
@@ -80,6 +82,8 @@ github.com/go-widgets/painter v0.12.0 h1:gMqTVbIbGSKmaE28NKsbbKdNIk2drupNMNuLjFP
 github.com/go-widgets/painter v0.12.0/go.mod h1:IPRLqdUJuJX8sfuHeYLZCzjoLvA0ApbOlyIAVmguJDQ=
 github.com/go-widgets/toolkit v0.301.0 h1:ymKltlmsMiMIHDObIiljo2umNF+ArbTmLD/Dg/9AYNw=
 github.com/go-widgets/toolkit v0.301.0/go.mod h1:NMj7CghnZKC+L9BRaAcKjykewTChSFuuTuVH+2wDjV4=
+github.com/go-widgets/tray v0.8.0 h1:8/86f5NeAEBG/9dEEuKvCpyO3SViHb9tQLGMZ9+AQ60=
+github.com/go-widgets/tray v0.8.0/go.mod h1:N85EGfHbMo1SxX6BH1tlnOJpIP26MP7rKemLNVtcDf8=
 github.com/goccy/go-yaml v1.19.2 h1:PmFC1S6h8ljIz6gMRBopkjP1TVT7xuwrButHID66PoM=
 github.com/goccy/go-yaml v1.19.2/go.mod h1:XBurs7gK8ATbW4ZPGKgcbrY1Br56PdM69F7LkFRi1kA=
 github.com/godbus/dbus/v5 v5.2.2 h1:TUR3TgtSVDmjiXOgAAyaZbYmIeP3DPkld3jgKGV8mXQ=

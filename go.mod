@@ -7,8 +7,10 @@ require (
 	github.com/go-keyring/keyring v0.3.0
 	github.com/go-webengine/browserproxy v0.0.0-20260902185530-047ea0a744e1
 	github.com/go-webengine/engine v0.3.12-0.20260903142529-4ef49d77f4d4
+	github.com/go-widgets/mvvm v0.9.0
 	github.com/go-widgets/painter v0.12.0
 	github.com/go-widgets/toolkit v0.301.0
+	github.com/go-widgets/tray v0.8.0
 	github.com/hashicorp/go-plugin v1.8.0
 )
 
@@ -33,6 +35,7 @@ require (
 	github.com/go-images/images v0.0.0-20260831115433-23d959d868e3 // indirect
 	github.com/go-macos/keychain v0.1.0 // indirect
 	github.com/go-macos/objc v0.9.1 // indirect
+	github.com/go-mswin/win32 v0.4.0 // indirect
 	github.com/go-opentype/fonts v0.9.0 // indirect
 	github.com/go-opentype/opentype v0.12.0 // indirect
 	github.com/go-opentype/shape v0.5.0 // indirect
@@ -40,7 +43,6 @@ require (
 	github.com/go-sourcemap/sourcemap v2.1.4+incompatible // indirect
 	github.com/go-typeset/bidi v0.3.0 // indirect
 	github.com/go-webengine/esbuildsandbox v0.1.0 // indirect
-	github.com/go-widgets/mvvm v0.9.0 // indirect
 	github.com/godbus/dbus/v5 v5.2.2 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/pprof v0.0.0-20240727154555-813a5fbdbec8 // indirect
