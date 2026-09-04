@@ -72,27 +72,46 @@ func TestBuildMenuWindowWithNoLimitIsNA(t *testing.T) {
 }
 
 func TestWindowRowShowsWhenTheWindowResets(t *testing.T) {
-	now := time.Date(2026, 9, 4, 12, 0, 0, 0, time.UTC)
+	// 2026-09-04 is a Friday. Local, not UTC: production always calls
+	// windowRow with time.Now() (Local) and time.Unix (also Local by
+	// default) — this exercises the SAME-location path formatResetAt's
+	// own doc comment says is the common case, while
+	// TestFormatResetAtNormalizesLocations below exercises the
+	// cross-location one directly.
+	now := time.Date(2026, 9, 4, 12, 0, 0, 0, time.Local)
 	cases := []struct {
 		name string
 		w    *quotapb.QuotaWindow
 		want string
 	}{
-		{"under an hour", &quotapb.QuotaWindow{Label: "session", Used: 10, Limit: 100,
-			ResetsAtUnix: now.Add(42 * time.Minute).Unix()}, "42m"},
-		{"hours and minutes", &quotapb.QuotaWindow{Label: "session", Used: 10, Limit: 100,
-			ResetsAtUnix: now.Add(2*time.Hour + 14*time.Minute).Unix()}, "2h14m"},
-		{"past a day", &quotapb.QuotaWindow{Label: "weekly", Used: 10, Limit: 100,
-			ResetsAtUnix: now.Add(27 * time.Hour).Unix()}, "1d3h"},
+		{"later today", &quotapb.QuotaWindow{Label: "session", Used: 10, Limit: 100,
+			ResetsAtUnix: now.Add(2*time.Hour + 14*time.Minute).Unix()}, "14:14"},
+		{"tomorrow", &quotapb.QuotaWindow{Label: "weekly", Used: 10, Limit: 100,
+			ResetsAtUnix: now.Add(27 * time.Hour).Unix()}, "Sat 15:00"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			got := windowRow(c.w, now)
-			want := "resets in " + c.want
+			want := "resets at " + c.want
 			if !strings.Contains(got, want) {
 				t.Fatalf("windowRow() = %q, want it to contain %q", got, want)
 			}
 		})
+	}
+}
+
+// TestFormatResetAtNormalizesLocations is the actual proof that "same
+// calendar day" is decided after moving both times into a common
+// location, not by comparing each Time's own idea of its date: resetsAt's
+// OWN zone reads it as the day after now's, but they are in fact the same
+// UTC-04 calendar day — a naive comparison would answer "different day"
+// and wrongly print "Sat 12:00" instead of "22:00".
+func TestFormatResetAtNormalizesLocations(t *testing.T) {
+	utcPlus14 := time.FixedZone("UTC+14", 14*3600)
+	now := time.Date(2026, 9, 4, 23, 0, 0, 0, time.UTC)       // 2026-09-04, UTC
+	resetsAt := time.Date(2026, 9, 5, 12, 0, 0, 0, utcPlus14) // same instant: 2026-09-04 22:00 UTC
+	if got := formatResetAt(resetsAt, now); got != "22:00" {
+		t.Fatalf("formatResetAt() = %q, want %q (same day once normalized to now's location)", got, "22:00")
 	}
 }
 

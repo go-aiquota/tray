@@ -136,32 +136,32 @@ func windowRow(w *quotapb.QuotaWindow, now time.Time) string {
 	}
 	row := fmt.Sprintf("%s %.0f%%", w.Label, w.Used/w.Limit*100)
 	if w.ResetsAtUnix > 0 {
-		if d := time.Unix(w.ResetsAtUnix, 0).Sub(now); d > 0 {
-			row += fmt.Sprintf(" (resets in %s)", formatResetIn(d))
+		if resetsAt := time.Unix(w.ResetsAtUnix, 0); resetsAt.After(now) {
+			row += fmt.Sprintf(" (resets at %s)", formatResetAt(resetsAt, now))
 		}
 	}
 	return row
 }
 
-// formatResetIn renders a duration the way a person reads a countdown, not
-// the way time.Duration.String does (no seconds — nobody needs "2h14m9s"
-// worth of precision for a quota window, and it would tick over on every
-// menu build besides): "42m", "2h14m", or "1d3h" past a day.
-func formatResetIn(d time.Duration) string {
-	d = d.Round(time.Minute)
-	days := d / (24 * time.Hour)
-	d -= days * 24 * time.Hour
-	hours := d / time.Hour
-	d -= hours * time.Hour
-	minutes := d / time.Minute
-	switch {
-	case days > 0:
-		return fmt.Sprintf("%dd%dh", days, hours)
-	case hours > 0:
-		return fmt.Sprintf("%dh%dm", hours, minutes)
-	default:
-		return fmt.Sprintf("%dm", minutes)
+// formatResetAt renders a clock-on-the-wall answer to "when", not a
+// countdown that's stale the moment it's read (see formatResetAt's sibling
+// commit for why an earlier "resets in 2h14m" version was replaced —
+// "resets at 15:04" doesn't need re-reading five minutes later to still be
+// true). Bare "15:04" when resetsAt falls on the same LOCAL calendar day as
+// now; "Mon 15:04" otherwise, so a Friday-evening reader isn't misled about
+// which day 15:04 belongs to.
+func formatResetAt(resetsAt, now time.Time) string {
+	// Same-day is a question about the wall clock: comparing each Time's
+	// own Date() without agreeing on a location first would answer it
+	// wrong whenever the two arrive in different zones (time.Unix's Local
+	// default versus a caller — a test, say — that built now in UTC).
+	resetsAt = resetsAt.In(now.Location())
+	ry, rm, rd := resetsAt.Date()
+	ny, nm, nd := now.Date()
+	if ry == ny && rm == nm && rd == nd {
+		return resetsAt.Format("15:04")
 	}
+	return resetsAt.Format("Mon 15:04")
 }
 
 func orNoop(fn func()) func() {
