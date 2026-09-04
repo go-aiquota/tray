@@ -12,7 +12,8 @@ require (
 	github.com/go-widgets/mvvm v0.9.0
 	github.com/go-widgets/painter v0.12.0
 	github.com/go-widgets/toolkit v0.301.0
-	github.com/go-widgets/tray v0.8.1-0.20260903195946-9fcba7488191
+	github.com/go-widgets/tray v0.9.0
+	github.com/go-widgets/window v0.64.0
 	github.com/hashicorp/go-plugin v1.8.0
 )
 
@@ -25,7 +26,7 @@ require (
 	github.com/danieljoos/wincred v1.2.3 // indirect
 	github.com/dlclark/regexp2/v2 v2.5.2 // indirect
 	github.com/dop251/goja v0.0.0-20260826204918-8f1c0696a37b // indirect
-	github.com/ebitengine/purego v0.10.2 // indirect
+	github.com/ebitengine/purego v0.11.0 // indirect
 	github.com/evanw/esbuild v0.28.2 // indirect
 	github.com/fatih/color v1.13.0 // indirect
 	github.com/go-browserhttp/browserhttp v0.2.0 // indirect
@@ -48,7 +49,6 @@ require (
 	github.com/go-typeset/bidi v0.3.0 // indirect
 	github.com/go-webengine/esbuildsandbox v0.1.0 // indirect
 	github.com/go-widgets/android v0.13.1 // indirect
-	github.com/go-widgets/window v0.64.0 // indirect
 	github.com/godbus/dbus/v5 v5.2.2 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/pprof v0.0.0-20240727154555-813a5fbdbec8 // indirect
