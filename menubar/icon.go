@@ -52,7 +52,7 @@ func Icon(px int, severity Severity) ([]byte, error) {
 	toolkit.DrawIconoir(p, box, "activity", glyphInk)
 
 	if ink, ok := dotInk[severity]; ok {
-		d := px / 3
+		d := px / 2
 		if d < 6 {
 			d = min(6, px)
 		}
