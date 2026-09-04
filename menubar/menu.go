@@ -15,8 +15,10 @@ import (
 // A nil field is treated as a no-op: a caller that hasn't wired one yet gets
 // a clickable-but-inert row rather than a crash.
 type Actions struct {
-	// AddAccount opens the onboarding window for a new account.
-	AddAccount func()
+	// AddAccount opens the onboarding window for a new account of the given
+	// provider (see ProviderChoice.Provider) — always called with exactly
+	// one of the providers BuildMenu was given, never "" or an unlisted one.
+	AddAccount func(provider string)
 	// LockNow discards every cached credential (app.CredentialCache.Lock),
 	// so the next poll of a Touch-ID-gated account prompts again instead of
 	// reusing the copy the tray has held since it last asked. It has
@@ -28,13 +30,26 @@ type Actions struct {
 	Quit func()
 }
 
+// ProviderChoice is one entry in the "Add account…" picker: Provider is
+// what Actions.AddAccount is called with (a provider plugin's own
+// Describe().Name — "claude", "chatgpt", …), Label is what a person sees.
+// The list BuildMenu is given comes from discovering installed plugins
+// (see quota.DiscoverProviders) — a new plugin shows up here without any
+// change to this package, since nothing here hardcodes a provider name.
+type ProviderChoice struct {
+	Provider string
+	Label    string
+}
+
 // BuildMenu renders one disabled (label-only) row per account — a menu bar
 // is for glancing at, not editing; adding or removing an account is
 // deliberately routed through AddAccount/onboarding rather than a per-row
 // action menu here, since that's account-management UI, not a status
 // readout — followed by a separator and the actions every tray needs
-// regardless of how many accounts exist.
-func BuildMenu(accounts []AccountStatus, t Thresholds, actions Actions) *tray.Menu {
+// regardless of how many accounts exist. providers drives the "Add
+// account…" row: a plain item when there's exactly one, a submenu (one row
+// per provider) when there's more than one, disabled when there's none.
+func BuildMenu(accounts []AccountStatus, t Thresholds, actions Actions, providers []ProviderChoice) *tray.Menu {
 	m := tray.NewMenu()
 	if len(accounts) == 0 {
 		m.Add(&tray.MenuItem{Label: "No accounts yet", Disabled: true})
@@ -43,10 +58,39 @@ func BuildMenu(accounts []AccountStatus, t Thresholds, actions Actions) *tray.Me
 		m.Add(&tray.MenuItem{Label: accountRow(a, t), Disabled: true})
 	}
 	m.Add(tray.Separator())
-	m.Add(tray.Item("Add account…", orNoop(actions.AddAccount)))
+	m.Add(addAccountItem(providers, actions.AddAccount))
 	m.Add(tray.Item("Lock now", orNoop(actions.LockNow)))
 	m.Add(tray.Item("Quit", orNoop(actions.Quit)))
 	return m
+}
+
+// addAccountItem builds the "Add account…" row itself. addAccount may be
+// nil (see Actions' own doc comment) — every generated click handler goes
+// through it defensively rather than assuming a caller always wires one.
+func addAccountItem(providers []ProviderChoice, addAccount func(string)) *tray.MenuItem {
+	click := func(provider string) func() {
+		return func() {
+			if addAccount != nil {
+				addAccount(provider)
+			}
+		}
+	}
+	switch len(providers) {
+	case 0:
+		return &tray.MenuItem{Label: "Add account… (no provider plugins found)", Disabled: true}
+	case 1:
+		return tray.Item("Add account…", click(providers[0].Provider))
+	default:
+		sub := tray.NewMenu()
+		for _, p := range providers {
+			label := p.Label
+			if label == "" {
+				label = p.Provider
+			}
+			sub.Add(tray.Item(label, click(p.Provider)))
+		}
+		return tray.SubMenu("Add account…", sub)
+	}
 }
 
 // accountRow renders one account's line, e.g. "work@example.com — session

@@ -87,7 +87,7 @@ func TestAccountItemsSyncCreatesUpdatesAndRemoves(t *testing.T) {
 	}
 	t.Cleanup(func() { trayBackend = prev })
 
-	items := NewAccountItems(Actions{}, DefaultThresholds)
+	items := NewAccountItems(Actions{}, DefaultThresholds, oneProvider)
 
 	a1 := AccountStatus{AccountID: "a1", Label: "work", Snapshot: snapshot(&quotapb.QuotaWindow{Label: "session", Used: 46, Limit: 100})}
 	a2 := AccountStatus{AccountID: "a2", Label: "personal", Snapshot: snapshot(&quotapb.QuotaWindow{Label: "session", Used: 10, Limit: 100})}
@@ -139,7 +139,7 @@ func TestAccountItemsSyncEmptyIsANoop(t *testing.T) {
 	trayBackend = func() tray.Backend { return newFakeAttachableBackend() }
 	t.Cleanup(func() { trayBackend = prev })
 
-	items := NewAccountItems(Actions{}, DefaultThresholds)
+	items := NewAccountItems(Actions{}, DefaultThresholds, oneProvider)
 	if err := items.Sync(nil); err != nil {
 		t.Fatalf("Sync(nil): %v, want no error for an empty account list", err)
 	}
@@ -162,15 +162,15 @@ func TestAccountItemsMenuMatchesBuildMenuForOneAccount(t *testing.T) {
 	t.Cleanup(func() { trayBackend = prev })
 
 	var addCalled bool
-	actions := Actions{AddAccount: func() { addCalled = true }}
+	actions := Actions{AddAccount: func(string) { addCalled = true }}
 	status := AccountStatus{AccountID: "a1", Label: "work", Snapshot: snapshot(&quotapb.QuotaWindow{Label: "session", Used: 46, Limit: 100})}
 
-	items := NewAccountItems(actions, DefaultThresholds)
+	items := NewAccountItems(actions, DefaultThresholds, oneProvider)
 	if err := items.Sync([]AccountStatus{status}); err != nil {
 		t.Fatalf("Sync: %v", err)
 	}
 
-	want := BuildMenu([]AccountStatus{status}, DefaultThresholds, actions)
+	want := BuildMenu([]AccountStatus{status}, DefaultThresholds, actions, oneProvider)
 	_, _, got := b.Snapshot()
 	if len(got.Items) != len(want.Items) {
 		t.Fatalf("menu has %d items, want %d (matching BuildMenu's own shape)", len(got.Items), len(want.Items))

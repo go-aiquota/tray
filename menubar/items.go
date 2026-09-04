@@ -24,16 +24,17 @@ import (
 type AccountItems struct {
 	thresholds Thresholds
 	actions    Actions
+	providers  []ProviderChoice
 
 	mu    sync.Mutex
 	items map[string]*tray.Tray
 }
 
 // NewAccountItems returns a manager with no items yet; call Sync to
-// populate it. actions and thresholds are shared across every item's own
-// menu (see Sync) exactly as they are for the control item's.
-func NewAccountItems(actions Actions, t Thresholds) *AccountItems {
-	return &AccountItems{actions: actions, thresholds: t, items: map[string]*tray.Tray{}}
+// populate it. actions, thresholds and providers are shared across every
+// item's own menu (see Sync) exactly as they are for the control item's.
+func NewAccountItems(actions Actions, t Thresholds, providers []ProviderChoice) *AccountItems {
+	return &AccountItems{actions: actions, thresholds: t, providers: providers, items: map[string]*tray.Tray{}}
 }
 
 // Sync makes the live items match accounts: creates one for each account
@@ -78,7 +79,7 @@ func (a *AccountItems) upsertLocked(status AccountStatus) error {
 	// account: one disabled detail row plus the shared actions, so every
 	// item — control or per-account — offers identical control, and there
 	// is no second menu-building path to keep in sync with the first.
-	menu := BuildMenu([]AccountStatus{status}, a.thresholds, a.actions)
+	menu := BuildMenu([]AccountStatus{status}, a.thresholds, a.actions, a.providers)
 
 	if t, ok := a.items[status.AccountID]; ok {
 		t.SetIcon(icon).SetTitle(title).SetTooltip(tooltip).SetMenu(menu)

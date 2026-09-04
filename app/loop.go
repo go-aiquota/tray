@@ -3,22 +3,31 @@
 
 package app
 
-// Action is what a tray-menu row means once it fires. It arrives the same
-// way whether a person actually clicked the row — go-widgets/tray's own
-// native backend resolves a click by calling exactly item.Activate() (see
+// ActionKind is which tray-menu row fired. It arrives the same way whether
+// a person actually clicked the row — go-widgets/tray's own native backend
+// resolves a click by calling exactly item.Activate() (see
 // native_shared.go's click-dispatch table) — or a test calls Activate()
 // directly with no mouse, no OS event, and no window server involved at
 // all: both routes end up running the identical Go closure a
 // menubar.Actions field was given, which is what makes Activate() a real
 // verification tool rather than an approximation of one.
-type Action int
+type ActionKind int
 
 const (
-	ActionNone Action = iota
+	ActionNone ActionKind = iota
 	ActionAddAccount
 	ActionLockNow
 	ActionQuit
 )
+
+// Action is one fired row, plus whatever it carries: which provider was
+// picked, for ActionAddAccount (see menubar.ProviderChoice — a person may
+// have more than one provider plugin installed to choose between). Every
+// other kind leaves Provider empty.
+type Action struct {
+	Kind     ActionKind
+	Provider string
+}
 
 // TrayController is the subset of menubar.Tray that Loop drives: hold the
 // platform run loop until something releases it, and give it up on demand.
@@ -33,7 +42,10 @@ type TrayController interface {
 // the same convention menubar.Actions uses, for the same reason: a caller
 // that hasn't wired one yet gets nothing, not a crash.
 type Handlers struct {
-	OnAddAccount func()
+	// OnAddAccount receives the provider a person picked (see
+	// menubar.ProviderChoice) — "claude", "chatgpt", whatever the plugin
+	// declared itself as.
+	OnAddAccount func(provider string)
 	OnLockNow    func()
 	OnQuit       func()
 	// OnHoldError is called if item.Hold itself fails (e.g. no platform
@@ -53,7 +65,7 @@ type Handlers struct {
 // re-holds for the next one. It returns when ActionQuit arrives.
 func Loop(item TrayController, actions <-chan Action, h Handlers) {
 	for {
-		got := ActionNone
+		got := Action{Kind: ActionNone}
 		done := make(chan struct{})
 		go func() {
 			defer close(done)
@@ -65,7 +77,7 @@ func Loop(item TrayController, actions <-chan Action, h Handlers) {
 		}
 		<-done
 
-		switch got {
+		switch got.Kind {
 		case ActionQuit:
 			if h.OnQuit != nil {
 				h.OnQuit()
@@ -77,7 +89,7 @@ func Loop(item TrayController, actions <-chan Action, h Handlers) {
 			}
 		case ActionAddAccount:
 			if h.OnAddAccount != nil {
-				h.OnAddAccount()
+				h.OnAddAccount(got.Provider)
 			}
 		}
 	}
