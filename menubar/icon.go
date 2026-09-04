@@ -61,18 +61,25 @@ func Icon(px int, severity Severity) ([]byte, error) {
 	}
 
 	// The painter writes BGRA; image/png wants (N)RGBA.
-	pix := make([]byte, len(buf))
-	for i := 0; i+3 < len(buf); i += 4 {
-		pix[i], pix[i+1], pix[i+2], pix[i+3] = buf[i+2], buf[i+1], buf[i], buf[i+3]
-	}
 	img := image.NewNRGBA(image.Rect(0, 0, px, px))
-	copy(img.Pix, pix)
+	copy(img.Pix, bgraToRGBA(buf))
 
 	var out bytes.Buffer
 	if err := png.Encode(&out, img); err != nil {
 		return nil, err
 	}
 	return out.Bytes(), nil
+}
+
+// bgraToRGBA byte-swaps a PixelPainter's BGRA buffer into (N)RGBA order —
+// shared by Icon (which then PNG-encodes it) and RenderChart (which hands
+// it straight to toolkit.NewImage, no PNG involved).
+func bgraToRGBA(buf []byte) []byte {
+	pix := make([]byte, len(buf))
+	for i := 0; i+3 < len(buf); i += 4 {
+		pix[i], pix[i+1], pix[i+2], pix[i+3] = buf[i+2], buf[i+1], buf[i], buf[i+3]
+	}
+	return pix
 }
 
 // Icons builds the go-widgets/tray.Icons map every Severity needs for

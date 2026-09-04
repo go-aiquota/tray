@@ -29,6 +29,11 @@ type Actions struct {
 	LockNow func()
 	// Quit ends the application.
 	Quit func()
+	// ViewHistory opens a chart of one account's session/weekly usage over
+	// time. Only ever wired to the row BuildMenu adds when it's given
+	// EXACTLY one account (see BuildMenu) — a per-account concept, so it
+	// has no meaning on the control item's aggregate, all-accounts menu.
+	ViewHistory func(accountID string)
 }
 
 // ProviderChoice is one entry in the "Add account…" picker: Provider is
@@ -58,6 +63,15 @@ func BuildMenu(accounts []AccountStatus, t Thresholds, actions Actions, provider
 	now := time.Now()
 	for _, a := range accounts {
 		m.Add(&tray.MenuItem{Label: accountRow(a, t, now), Disabled: true})
+	}
+	if len(accounts) == 1 {
+		id := accounts[0].AccountID
+		viewHistory := actions.ViewHistory
+		m.Add(tray.Item("View history…", func() {
+			if viewHistory != nil {
+				viewHistory(id)
+			}
+		}))
 	}
 	m.Add(tray.Separator())
 	m.Add(addAccountItem(providers, actions.AddAccount))
