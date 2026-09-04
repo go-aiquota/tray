@@ -67,13 +67,16 @@ func waitEntered(t *testing.T, f *fakeTray) {
 func TestLoopAddAccountThenContinues(t *testing.T) {
 	fake := newFakeTray()
 	actions := make(chan Action, 1)
-	addCh := make(chan struct{}, 1)
-	go Loop(fake, actions, Handlers{OnAddAccount: func() { addCh <- struct{}{} }})
+	addCh := make(chan string, 1)
+	go Loop(fake, actions, Handlers{OnAddAccount: func(provider string) { addCh <- provider }})
 
 	waitEntered(t, fake)
-	actions <- ActionAddAccount
+	actions <- Action{Kind: ActionAddAccount, Provider: "claude"}
 	select {
-	case <-addCh:
+	case got := <-addCh:
+		if got != "claude" {
+			t.Fatalf("OnAddAccount got provider %q, want %q", got, "claude")
+		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("OnAddAccount was not called")
 	}
@@ -89,7 +92,7 @@ func TestLoopLockNowThenContinues(t *testing.T) {
 	go Loop(fake, actions, Handlers{OnLockNow: func() { lockCh <- struct{}{} }})
 
 	waitEntered(t, fake)
-	actions <- ActionLockNow
+	actions <- Action{Kind: ActionLockNow}
 	select {
 	case <-lockCh:
 	case <-time.After(2 * time.Second):
@@ -109,7 +112,7 @@ func TestLoopQuitReturns(t *testing.T) {
 	}()
 
 	waitEntered(t, fake)
-	actions <- ActionQuit
+	actions <- Action{Kind: ActionQuit}
 	select {
 	case <-quitCh:
 	case <-time.After(2 * time.Second):
@@ -132,11 +135,11 @@ func TestLoopNilHandlersDoNotPanic(t *testing.T) {
 	}()
 
 	waitEntered(t, fake)
-	actions <- ActionAddAccount
+	actions <- Action{Kind: ActionAddAccount, Provider: "claude"}
 	waitEntered(t, fake)
-	actions <- ActionLockNow
+	actions <- Action{Kind: ActionLockNow}
 	waitEntered(t, fake)
-	actions <- ActionQuit
+	actions <- Action{Kind: ActionQuit}
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
@@ -174,7 +177,7 @@ func TestLoopHoldErrorStillWaitsForTheNextAction(t *testing.T) {
 		t.Fatalf("OnHoldError got %v, want the Hold error", gotErr)
 	}
 	// A Hold error must not stop the loop: Lock/Quit should still work.
-	actions <- ActionQuit
+	actions <- Action{Kind: ActionQuit}
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
@@ -193,19 +196,20 @@ func TestLoopHoldErrorStillWaitsForTheNextAction(t *testing.T) {
 func TestLoopDrivenByRealMenuItemActivate(t *testing.T) {
 	fake := newFakeTray()
 	actions := make(chan Action, 1)
+	providers := []menubar.ProviderChoice{{Provider: "claude", Label: "Claude"}}
 	menu := menubar.BuildMenu(nil, menubar.DefaultThresholds, menubar.Actions{
-		AddAccount: func() { actions <- ActionAddAccount },
-		LockNow:    func() { actions <- ActionLockNow },
-		Quit:       func() { actions <- ActionQuit },
-	})
+		AddAccount: func(p string) { actions <- Action{Kind: ActionAddAccount, Provider: p} },
+		LockNow:    func() { actions <- Action{Kind: ActionLockNow} },
+		Quit:       func() { actions <- Action{Kind: ActionQuit} },
+	}, providers)
 
-	addCh := make(chan struct{}, 1)
+	addCh := make(chan string, 1)
 	lockCh := make(chan struct{}, 1)
 	quitCh := make(chan struct{})
 	done := make(chan struct{})
 	go func() {
 		Loop(fake, actions, Handlers{
-			OnAddAccount: func() { addCh <- struct{}{} },
+			OnAddAccount: func(provider string) { addCh <- provider },
 			OnLockNow:    func() { lockCh <- struct{}{} },
 			OnQuit:       func() { close(quitCh) },
 		})
@@ -215,7 +219,10 @@ func TestLoopDrivenByRealMenuItemActivate(t *testing.T) {
 	waitEntered(t, fake)
 	findRow(t, menu, "Add account…").Activate()
 	select {
-	case <-addCh:
+	case got := <-addCh:
+		if got != "claude" {
+			t.Fatalf("OnAddAccount got provider %q, want %q", got, "claude")
+		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("activating \"Add account…\" did not reach OnAddAccount")
 	}
@@ -239,6 +246,50 @@ func TestLoopDrivenByRealMenuItemActivate(t *testing.T) {
 	case <-done:
 	case <-time.After(2 * time.Second):
 		t.Fatal("Loop did not return after \"Quit\" was activated")
+	}
+}
+
+// TestLoopDrivenByRealMenuItemActivate_MultipleProviders proves the actual
+// point of ProviderChoice: with more than one provider plugin installed,
+// "Add account…" becomes a submenu, and activating a SPECIFIC provider's
+// row — not just the top-level label — is what reaches OnAddAccount, with
+// the right provider name attached. Same real-menu, no-mouse Activate()
+// discipline as the single-provider test above.
+func TestLoopDrivenByRealMenuItemActivate_MultipleProviders(t *testing.T) {
+	fake := newFakeTray()
+	actions := make(chan Action, 1)
+	providers := []menubar.ProviderChoice{
+		{Provider: "chatgpt", Label: "ChatGPT"},
+		{Provider: "claude", Label: "Claude"},
+	}
+	menu := menubar.BuildMenu(nil, menubar.DefaultThresholds, menubar.Actions{
+		AddAccount: func(p string) { actions <- Action{Kind: ActionAddAccount, Provider: p} },
+	}, providers)
+
+	addCh := make(chan string, 1)
+	done := make(chan struct{})
+	go func() {
+		Loop(fake, actions, Handlers{OnAddAccount: func(provider string) { addCh <- provider }})
+		close(done)
+	}()
+	t.Cleanup(func() {
+		actions <- Action{Kind: ActionQuit}
+		<-done
+	})
+
+	waitEntered(t, fake)
+	sub := findRow(t, menu, "Add account…")
+	if sub.Submenu == nil {
+		t.Fatal(`"Add account…" is not a submenu with two providers installed`)
+	}
+	findRow(t, sub.Submenu, "Claude").Activate()
+	select {
+	case got := <-addCh:
+		if got != "claude" {
+			t.Fatalf("OnAddAccount got provider %q, want %q", got, "claude")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal(`activating the "Claude" submenu row did not reach OnAddAccount`)
 	}
 }
 

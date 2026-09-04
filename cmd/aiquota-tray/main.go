@@ -19,8 +19,10 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 	"time"
 
+	"github.com/go-aiquota/proto/quotapb"
 	"github.com/go-aiquota/tray/account"
 	"github.com/go-aiquota/tray/app"
 	"github.com/go-aiquota/tray/menubar"
@@ -38,24 +40,6 @@ import (
 func init() { runtime.LockOSThread() }
 
 const (
-	// provider names the one plugin this build ships with. Adding
-	// ChatGPT/Gemini later means adding entries here (and their own
-	// go-aiquota/plugin-* binaries) — see the proto package's own doc
-	// comment for why the plugin boundary exists at all.
-	provider = "claude"
-	// loginURL is claude.ai's own public sign-in page — not a secret, and
-	// not the (still unknown) internal usage-quota endpoint go-aiquota's
-	// own plugin will eventually call; onboarding only ever drives this
-	// page, never that endpoint.
-	loginURL = "https://claude.ai/login"
-	// cookieDomain is what the onboarding step is asked for cookies of
-	// after a login: the WHOLE cookie jar for the domain, not one named
-	// cookie — this program does not know which cookie claude.ai actually
-	// uses for a session, and guessing its name would be worse than
-	// storing a few extra harmless ones. The plugin that reads them back
-	// decides which it needs.
-	cookieDomain = "claude.ai"
-
 	// orgUUIDCredentialKey is the one non-cookie field plugin-claude's
 	// FetchQuota needs alongside the cookie jar (see its own provider.go
 	// for why: there is no page a scripted client can hit to rediscover an
@@ -87,6 +71,15 @@ func run() int {
 	defer manager.Close()
 	cache := app.NewCredentialCache(store.Credential)
 
+	// Discovered ONCE at startup, not re-scanned per menu-open: a plugin
+	// binary appearing on PATH mid-run is rare enough that requiring a
+	// restart to pick it up is a reasonable v1 trade for not re-launching
+	// every provider's subprocess on every "Add account" click. See
+	// quota.DiscoverProviders' own doc comment — a plugin needs nothing
+	// beyond existing on PATH under the right name to show up here; this
+	// program has no per-provider code to add.
+	providerInfo, providerChoices := discoverProviders(manager)
+
 	actions := make(chan app.Action, 4)
 	send := func(a app.Action) {
 		select {
@@ -103,12 +96,12 @@ func run() int {
 	// menu (see AccountItems) — one set of callbacks, so "Quit" or "Add
 	// account…" does the same thing no matter which icon a person clicked.
 	sharedActions := menubar.Actions{
-		AddAccount: func() { send(app.ActionAddAccount) },
-		LockNow:    func() { send(app.ActionLockNow) },
-		Quit:       func() { send(app.ActionQuit) },
+		AddAccount: func(provider string) { send(app.Action{Kind: app.ActionAddAccount, Provider: provider}) },
+		LockNow:    func() { send(app.Action{Kind: app.ActionLockNow}) },
+		Quit:       func() { send(app.Action{Kind: app.ActionQuit}) },
 	}
 
-	item, err := menubar.Open(state, menubar.BuildMenu(nil, thresholds, sharedActions))
+	item, err := menubar.Open(state, menubar.BuildMenu(nil, thresholds, sharedActions, providerChoices))
 	if err != nil {
 		log.Printf("aiquota-tray: %v", err)
 		return 1
@@ -121,7 +114,7 @@ func run() int {
 	// actually exists (see menubar.Tray.OnReady's own doc comment), which
 	// is why refresh (below) is wired to OnReady rather than called here
 	// directly.
-	accountItems := menubar.NewAccountItems(sharedActions, thresholds)
+	accountItems := menubar.NewAccountItems(sharedActions, thresholds, providerChoices)
 	defer accountItems.Close()
 
 	// refresh builds every menu straight from THIS call's own statuses
@@ -141,7 +134,7 @@ func run() int {
 			return
 		}
 		state.Set(menubar.Aggregate(statuses, thresholds))
-		item.SetMenu(menubar.BuildMenu(statuses, thresholds, sharedActions))
+		item.SetMenu(menubar.BuildMenu(statuses, thresholds, sharedActions, providerChoices))
 		if err := accountItems.Sync(statuses); err != nil {
 			log.Printf("aiquota-tray: syncing per-account tray items: %v", err)
 		}
@@ -178,8 +171,8 @@ func run() int {
 	app.Loop(item, actions, app.Handlers{
 		OnHoldError: func(err error) { log.Printf("aiquota-tray: tray: %v", err) },
 		OnLockNow:   cache.Lock,
-		OnAddAccount: func() {
-			if err := addAccount(store); err != nil {
+		OnAddAccount: func(provider string) {
+			if err := addAccount(store, provider, providerInfo[provider]); err != nil {
 				log.Printf("aiquota-tray: adding account: %v", err)
 			}
 			refresh()
@@ -189,12 +182,18 @@ func run() int {
 }
 
 // addAccount opens the onboarding window (see openOnboarding, which picks
-// the platform-appropriate mechanism), waits for it to close, and — if the
-// site actually set a cookie — stores the new account. A closed window
-// with no cookie (the person cancelled, or the login failed) adds nothing;
-// that's not an error worth logging as one.
-func addAccount(store *account.Store) error {
-	cookies, err := openOnboarding(loginURL, cookieDomain, onboardWidth, onboardHeight)
+// the platform-appropriate mechanism) at info's login URL, waits for it to
+// close, and — if the site actually set a cookie — stores the new account
+// under provider. A closed window with no cookie (the person cancelled, or
+// the login failed) adds nothing; that's not an error worth logging as
+// one. info is nil only if provider isn't one discoverProviders found
+// (the menu never offers one that isn't, so this is defensive, not an
+// expected path).
+func addAccount(store *account.Store, provider string, info *quotapb.ProviderInfo) error {
+	if info == nil {
+		return fmt.Errorf("no provider info for %q (its plugin may have gone away since startup)", provider)
+	}
+	cookies, err := openOnboarding(info.LoginUrl, info.CookieDomain, onboardWidth, onboardHeight)
 	if err != nil {
 		return err
 	}
@@ -213,6 +212,39 @@ func addAccount(store *account.Store) error {
 	// account at all.
 	a := account.Account{ID: id, Provider: provider, Label: id}
 	return store.Add(a, cookies)
+}
+
+// discoverProviders finds every installed provider plugin (see
+// quota.DiscoverProviders) and calls Describe on each one to learn its
+// onboarding details. A plugin that's found but fails to Describe (a
+// broken install, a binary that isn't actually a QuotaProvider) is logged
+// and skipped rather than failing startup — the same "don't refuse to run
+// over one bad provider" stance locateBinary's own doc comment describes.
+func discoverProviders(manager *quota.Manager) (map[string]*quotapb.ProviderInfo, []menubar.ProviderChoice) {
+	info := map[string]*quotapb.ProviderInfo{}
+	var choices []menubar.ProviderChoice
+	for _, name := range quota.DiscoverProviders(os.Getenv("PATH")) {
+		i, err := manager.Describe(context.Background(), name)
+		if err != nil {
+			log.Printf("aiquota-tray: describing %s plugin: %v", name, err)
+			continue
+		}
+		info[name] = i
+		choices = append(choices, menubar.ProviderChoice{Provider: name, Label: displayName(name)})
+	}
+	return info, choices
+}
+
+// displayName turns a provider id ("claude", "chatgpt") into what the
+// "Add account…" picker shows ("Claude", "Chatgpt") — ProviderInfo carries
+// no display name of its own (see quotapb.ProviderInfo's own fields), and
+// this is a reasonable default without inventing a new contract field for
+// a purely cosmetic capitalization a plugin author can't get "wrong".
+func displayName(provider string) string {
+	if provider == "" {
+		return provider
+	}
+	return strings.ToUpper(provider[:1]) + provider[1:]
 }
 
 // newAccountID returns a short random hex id — unique enough for a
