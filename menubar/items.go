@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/go-widgets/tray"
 )
@@ -74,7 +75,7 @@ func (a *AccountItems) upsertLocked(status AccountStatus) error {
 		return fmt.Errorf("menubar: building %s's icon: %w", status.AccountID, err)
 	}
 	title := titleFor(status)
-	tooltip := accountRow(status, a.thresholds)
+	tooltip := accountRow(status, a.thresholds, time.Now())
 	// The SAME BuildMenu the control item uses, given just this one
 	// account: one disabled detail row plus the shared actions, so every
 	// item — control or per-account — offers identical control, and there

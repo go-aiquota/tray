@@ -7,6 +7,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-aiquota/proto/quotapb"
 	"github.com/go-widgets/tray"
@@ -67,6 +68,50 @@ func TestBuildMenuWindowWithNoLimitIsNA(t *testing.T) {
 	m := BuildMenu(accounts, DefaultThresholds, Actions{}, oneProvider)
 	if got := m.Items[0].Label; !strings.Contains(got, "n/a") {
 		t.Fatalf("row = %q, want \"n/a\" for a window with no reported limit", got)
+	}
+}
+
+func TestWindowRowShowsWhenTheWindowResets(t *testing.T) {
+	now := time.Date(2026, 9, 4, 12, 0, 0, 0, time.UTC)
+	cases := []struct {
+		name string
+		w    *quotapb.QuotaWindow
+		want string
+	}{
+		{"under an hour", &quotapb.QuotaWindow{Label: "session", Used: 10, Limit: 100,
+			ResetsAtUnix: now.Add(42 * time.Minute).Unix()}, "42m"},
+		{"hours and minutes", &quotapb.QuotaWindow{Label: "session", Used: 10, Limit: 100,
+			ResetsAtUnix: now.Add(2*time.Hour + 14*time.Minute).Unix()}, "2h14m"},
+		{"past a day", &quotapb.QuotaWindow{Label: "weekly", Used: 10, Limit: 100,
+			ResetsAtUnix: now.Add(27 * time.Hour).Unix()}, "1d3h"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := windowRow(c.w, now)
+			want := "resets in " + c.want
+			if !strings.Contains(got, want) {
+				t.Fatalf("windowRow() = %q, want it to contain %q", got, want)
+			}
+		})
+	}
+}
+
+func TestWindowRowOmitsResetWhenUnknownOrPast(t *testing.T) {
+	now := time.Date(2026, 9, 4, 12, 0, 0, 0, time.UTC)
+	cases := []struct {
+		name string
+		w    *quotapb.QuotaWindow
+	}{
+		{"ResetsAtUnix unset (0)", &quotapb.QuotaWindow{Label: "session", Used: 10, Limit: 100}},
+		{"ResetsAtUnix already past", &quotapb.QuotaWindow{Label: "session", Used: 10, Limit: 100,
+			ResetsAtUnix: now.Add(-time.Minute).Unix()}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := windowRow(c.w, now); strings.Contains(got, "resets") {
+				t.Fatalf("windowRow() = %q, want no \"resets\" clause", got)
+			}
+		})
 	}
 }
 

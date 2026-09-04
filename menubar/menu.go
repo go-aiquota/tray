@@ -6,6 +6,7 @@ package menubar
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/go-aiquota/proto/quotapb"
 	"github.com/go-widgets/tray"
@@ -54,8 +55,9 @@ func BuildMenu(accounts []AccountStatus, t Thresholds, actions Actions, provider
 	if len(accounts) == 0 {
 		m.Add(&tray.MenuItem{Label: "No accounts yet", Disabled: true})
 	}
+	now := time.Now()
 	for _, a := range accounts {
-		m.Add(&tray.MenuItem{Label: accountRow(a, t), Disabled: true})
+		m.Add(&tray.MenuItem{Label: accountRow(a, t, now), Disabled: true})
 	}
 	m.Add(tray.Separator())
 	m.Add(addAccountItem(providers, actions.AddAccount))
@@ -94,10 +96,12 @@ func addAccountItem(providers []ProviderChoice, addAccount func(string)) *tray.M
 }
 
 // accountRow renders one account's line, e.g. "work@example.com — session
-// 45%, weekly 78%", or its error in place of percentages when its last poll
-// failed — the same distinction Severity itself draws, so the menu never
-// shows a stale percentage next to an account that's actually broken.
-func accountRow(a AccountStatus, t Thresholds) string {
+// 45% (resets in 2h14m), weekly 78%", or its error in place of percentages
+// when its last poll failed — the same distinction Severity itself draws,
+// so the menu never shows a stale percentage next to an account that's
+// actually broken. now is read once by the caller (not time.Now() per
+// window) so every row in the same menu build agrees on "now".
+func accountRow(a AccountStatus, t Thresholds, now time.Time) string {
 	name := a.Label
 	if name == "" {
 		name = a.AccountID
@@ -112,19 +116,52 @@ func accountRow(a AccountStatus, t Thresholds) string {
 	}
 	parts := make([]string, 0, len(a.Snapshot.Windows))
 	for _, w := range a.Snapshot.Windows {
-		parts = append(parts, windowRow(w))
+		parts = append(parts, windowRow(w, now))
 	}
 	return name + " — " + strings.Join(parts, ", ")
 }
 
-// windowRow renders one usage window as "label NN%", or "label: n/a" when
-// the provider hasn't reported a limit (see windowSeverity, which treats
-// the same case as Unknown rather than a false 0%).
-func windowRow(w *quotapb.QuotaWindow) string {
+// windowRow renders one usage window as "label NN% (resets in DURATION)",
+// or "label: n/a" when the provider hasn't reported a limit (see
+// windowSeverity, which treats the same case as Unknown rather than a
+// false 0%). The reset clause is omitted when the provider didn't report
+// ResetsAtUnix (0 — plugin-claude always does; a future provider that
+// can't know its own reset time simply doesn't set it) or it has already
+// passed (stale between this poll and the provider's own reset, about to
+// self-correct on the next one — showing a negative duration would be
+// worse than showing nothing).
+func windowRow(w *quotapb.QuotaWindow, now time.Time) string {
 	if w.Limit <= 0 {
 		return fmt.Sprintf("%s: n/a", w.Label)
 	}
-	return fmt.Sprintf("%s %.0f%%", w.Label, w.Used/w.Limit*100)
+	row := fmt.Sprintf("%s %.0f%%", w.Label, w.Used/w.Limit*100)
+	if w.ResetsAtUnix > 0 {
+		if d := time.Unix(w.ResetsAtUnix, 0).Sub(now); d > 0 {
+			row += fmt.Sprintf(" (resets in %s)", formatResetIn(d))
+		}
+	}
+	return row
+}
+
+// formatResetIn renders a duration the way a person reads a countdown, not
+// the way time.Duration.String does (no seconds — nobody needs "2h14m9s"
+// worth of precision for a quota window, and it would tick over on every
+// menu build besides): "42m", "2h14m", or "1d3h" past a day.
+func formatResetIn(d time.Duration) string {
+	d = d.Round(time.Minute)
+	days := d / (24 * time.Hour)
+	d -= days * 24 * time.Hour
+	hours := d / time.Hour
+	d -= hours * time.Hour
+	minutes := d / time.Minute
+	switch {
+	case days > 0:
+		return fmt.Sprintf("%dd%dh", days, hours)
+	case hours > 0:
+		return fmt.Sprintf("%dh%dm", hours, minutes)
+	default:
+		return fmt.Sprintf("%dm", minutes)
+	}
 }
 
 func orNoop(fn func()) func() {
