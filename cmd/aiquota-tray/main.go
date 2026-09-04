@@ -145,6 +145,15 @@ func run() int {
 		recordHistory(histStore, statuses)
 		state.Set(menubar.Aggregate(statuses, thresholds))
 		item.SetMenu(menubar.BuildMenu(statuses, thresholds, sharedActions, providerChoices))
+		// The control item's own icon is redundant once ANY per-account item
+		// exists — it shows nothing a per-account item doesn't already (the
+		// aggregate severity dot, with no text, versus that item's own dot
+		// AND its "NN%/NN%" text) — so it's hidden as soon as there's at
+		// least one account, and shown again with none, so there's always
+		// SOMETHING to click "Add account…" on. Hidden, not Closed: Close
+		// would take the whole platform loop's Hold down with it, which
+		// every per-account item's Attach depends on.
+		item.SetVisible(len(statuses) == 0)
 		if err := accountItems.Sync(statuses); err != nil {
 			log.Printf("aiquota-tray: syncing per-account tray items: %v", err)
 		}

@@ -55,6 +55,14 @@ func Open(state *mvvm.Observable[Severity], menu *tray.Menu) (*Tray, error) {
 // SetMenu replaces the tray's menu (e.g. after the account list changes).
 func (t *Tray) SetMenu(m *tray.Menu) { t.t.SetMenu(m) }
 
+// SetVisible shows or hides the control item's own icon without releasing
+// the platform loop every per-account item (see AccountItems) Attaches to
+// — see go-widgets/tray.Tray.SetVisible's own doc comment for why hiding,
+// not closing, is what a caller reaches for once the control item's icon
+// has become redundant next to the per-account items it Holds the loop
+// for.
+func (t *Tray) SetVisible(v bool) { t.t.SetVisible(v) }
+
 // OnReady registers fn to run once this tray's platform loop is actually
 // live — Hold has started it, or Attach has joined a host's already-running
 // one. It must be set before Hold/Attach.
