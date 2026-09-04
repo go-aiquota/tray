@@ -17,6 +17,8 @@
 // wholesale, anything credential-shaped elsewhere) before it's held in
 // memory or written anywhere, and the file goes outside any git work tree,
 // never inside one (see capture.OutDir).
+//
+// Usage: aiquota-capture [login-url]   (defaults to claude.ai/login)
 package main
 
 import (
@@ -35,14 +37,23 @@ import (
 func init() { runtime.LockOSThread() }
 
 const (
-	loginURL = "https://claude.ai/login"
-	width    = 480
-	height   = 720
+	defaultLoginURL = "https://claude.ai/login"
+	width           = 480
+	height          = 720
 )
+
+// loginURL is a package var, not a const, so every platform's
+// captureSession (session_darwin.go, session_other.go) keeps reading a
+// single source of truth after run() resolves it from argv.
+var loginURL = defaultLoginURL
 
 func main() { os.Exit(run()) }
 
 func run() int {
+	if len(os.Args) > 1 {
+		loginURL = os.Args[1]
+	}
+
 	dir, err := capture.OutDir(os.Getenv(capture.OutDirEnv))
 	if err != nil {
 		log.Printf("aiquota-capture: %v", err)
