@@ -25,6 +25,7 @@ import (
 	"github.com/go-aiquota/proto/quotapb"
 	"github.com/go-aiquota/tray/account"
 	"github.com/go-aiquota/tray/app"
+	"github.com/go-aiquota/tray/history"
 	"github.com/go-aiquota/tray/menubar"
 	"github.com/go-aiquota/tray/quota"
 	"github.com/go-widgets/mvvm"
@@ -71,6 +72,13 @@ func run() int {
 	defer manager.Close()
 	cache := app.NewCredentialCache(store.Credential)
 
+	histPath, err := history.DefaultPath()
+	if err != nil {
+		log.Printf("aiquota-tray: %v", err)
+		return 1
+	}
+	histStore := &history.Store{Path: histPath}
+
 	// Discovered ONCE at startup, not re-scanned per menu-open: a plugin
 	// binary appearing on PATH mid-run is rare enough that requiring a
 	// restart to pick it up is a reasonable v1 trade for not re-launching
@@ -96,9 +104,10 @@ func run() int {
 	// menu (see AccountItems) — one set of callbacks, so "Quit" or "Add
 	// account…" does the same thing no matter which icon a person clicked.
 	sharedActions := menubar.Actions{
-		AddAccount: func(provider string) { send(app.Action{Kind: app.ActionAddAccount, Provider: provider}) },
-		LockNow:    func() { send(app.Action{Kind: app.ActionLockNow}) },
-		Quit:       func() { send(app.Action{Kind: app.ActionQuit}) },
+		AddAccount:  func(provider string) { send(app.Action{Kind: app.ActionAddAccount, Provider: provider}) },
+		LockNow:     func() { send(app.Action{Kind: app.ActionLockNow}) },
+		Quit:        func() { send(app.Action{Kind: app.ActionQuit}) },
+		ViewHistory: func(accountID string) { send(app.Action{Kind: app.ActionViewHistory, AccountID: accountID}) },
 	}
 
 	item, err := menubar.Open(state, menubar.BuildMenu(nil, thresholds, sharedActions, providerChoices))
@@ -133,6 +142,7 @@ func run() int {
 			log.Printf("aiquota-tray: polling accounts: %v", err)
 			return
 		}
+		recordHistory(histStore, statuses)
 		state.Set(menubar.Aggregate(statuses, thresholds))
 		item.SetMenu(menubar.BuildMenu(statuses, thresholds, sharedActions, providerChoices))
 		if err := accountItems.Sync(statuses); err != nil {
@@ -177,8 +187,47 @@ func run() int {
 			}
 			refresh()
 		},
+		OnViewHistory: func(accountID string) {
+			label := accountID
+			if accounts, err := store.List(); err == nil {
+				for _, a := range accounts {
+					if a.ID == accountID {
+						label = a.Label
+						break
+					}
+				}
+			}
+			if err := openHistoryWindow(histStore, accountID, label); err != nil {
+				log.Printf("aiquota-tray: opening history for %s: %v", accountID, err)
+			}
+		},
 	})
 	return 0
+}
+
+// recordHistory appends each account's session/weekly usage (see
+// menubar.ClassifyWindow) to store, once per refresh — the one place
+// every poll result already flows through. A write failure is logged,
+// matching every other refresh failure path, and does not block the
+// rest of the refresh: a menu update or a per-account item is worth
+// having even if history couldn't be recorded this time.
+func recordHistory(store *history.Store, statuses []menubar.AccountStatus) {
+	now := time.Now().Unix()
+	for _, s := range statuses {
+		if s.Snapshot == nil {
+			continue
+		}
+		for _, w := range s.Snapshot.Windows {
+			key, ok := menubar.ClassifyWindow(w.Label)
+			if !ok {
+				continue
+			}
+			p := history.Point{AtUnix: now, Used: w.Used, Limit: w.Limit}
+			if err := store.Append(s.AccountID, key, p); err != nil {
+				log.Printf("aiquota-tray: recording %s history for %s: %v", key, s.AccountID, err)
+			}
+		}
+	}
 }
 
 // addAccount opens the onboarding window (see openOnboarding, which picks

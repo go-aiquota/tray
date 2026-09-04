@@ -117,10 +117,29 @@ func (a *AccountItems) Len() int {
 	return len(a.items)
 }
 
+// ClassifyWindow reports which logical series a window belongs to —
+// "session" or "weekly" — the two windows a person watching their quota
+// cares about moment to moment (titleFor's compact text, and the history/
+// chart feature). Matches a case-insensitive substring the way real
+// labels come back ("session", "weekly_all", "weekly_scoped") rather than
+// an exact string a future provider might spell slightly differently; ok
+// is false for anything else (a scoped, per-model window, say), which
+// belongs to neither series.
+func ClassifyWindow(label string) (key string, ok bool) {
+	l := strings.ToLower(label)
+	switch {
+	case strings.Contains(l, "session"):
+		return "session", true
+	case strings.Contains(l, "weekly") && !strings.Contains(l, "scoped"):
+		return "weekly", true
+	default:
+		return "", false
+	}
+}
+
 // titleFor is the compact text drawn in the menu bar for status: the
-// session and weekly-all percentages — the two windows a person watching
-// their quota cares about moment to moment — not every window BuildMenu's
-// own detail row lists (a scoped, per-model window would not fit in real
+// session and weekly-all percentages — not every window BuildMenu's own
+// detail row lists (a scoped, per-model window would not fit in real
 // menu-bar space next to a dozen other icons).
 func titleFor(status AccountStatus) string {
 	if status.Err != nil {
@@ -131,9 +150,7 @@ func titleFor(status AccountStatus) string {
 	}
 	var parts []string
 	for _, w := range status.Snapshot.Windows {
-		label := strings.ToLower(w.Label)
-		isWeeklyAll := strings.Contains(label, "weekly") && !strings.Contains(label, "scoped")
-		if !strings.Contains(label, "session") && !isWeeklyAll {
+		if _, ok := ClassifyWindow(w.Label); !ok {
 			continue
 		}
 		if w.Limit <= 0 {

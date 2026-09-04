@@ -18,15 +18,17 @@ const (
 	ActionAddAccount
 	ActionLockNow
 	ActionQuit
+	ActionViewHistory
 )
 
 // Action is one fired row, plus whatever it carries: which provider was
 // picked, for ActionAddAccount (see menubar.ProviderChoice — a person may
-// have more than one provider plugin installed to choose between). Every
-// other kind leaves Provider empty.
+// have more than one provider plugin installed to choose between); which
+// account, for ActionViewHistory. Every other kind leaves both empty.
 type Action struct {
-	Kind     ActionKind
-	Provider string
+	Kind      ActionKind
+	Provider  string
+	AccountID string
 }
 
 // TrayController is the subset of menubar.Tray that Loop drives: hold the
@@ -48,6 +50,9 @@ type Handlers struct {
 	OnAddAccount func(provider string)
 	OnLockNow    func()
 	OnQuit       func()
+	// OnViewHistory receives the AccountID whose usage-history window to
+	// open.
+	OnViewHistory func(accountID string)
 	// OnHoldError is called if item.Hold itself fails (e.g. no platform
 	// backend). Loop does not stop when this happens: a tray that cannot
 	// hold a loop still has a Lock/Quit worth honoring if one somehow
@@ -90,6 +95,10 @@ func Loop(item TrayController, actions <-chan Action, h Handlers) {
 		case ActionAddAccount:
 			if h.OnAddAccount != nil {
 				h.OnAddAccount(got.Provider)
+			}
+		case ActionViewHistory:
+			if h.OnViewHistory != nil {
+				h.OnViewHistory(got.AccountID)
 			}
 		}
 	}
