@@ -29,6 +29,7 @@ import (
 	"github.com/go-aiquota/tray/menubar"
 	"github.com/go-aiquota/tray/quota"
 	"github.com/go-widgets/mvvm"
+	"github.com/go-widgets/toolkit"
 )
 
 // init locks the main goroutine to the process's main OS thread before
@@ -62,6 +63,14 @@ const (
 func main() { os.Exit(run()) }
 
 func run() int {
+	// Anti-aliased, shaped text (the bundled Atkinson Hyperlegible face)
+	// instead of toolkit's built-in 5x7 bitmap font, for every window this
+	// process opens (onboarding, history charts, ...). A parse failure
+	// leaves the bitmap default in place rather than blocking startup.
+	if err := toolkit.UseOpenTypeText(); err != nil {
+		log.Printf("aiquota-tray: falling back to the bitmap font: %v", err)
+	}
+
 	path, err := account.DefaultPath()
 	if err != nil {
 		log.Printf("aiquota-tray: %v", err)
