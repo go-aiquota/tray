@@ -71,9 +71,8 @@ func Icon(px int, severity Severity) ([]byte, error) {
 	return out.Bytes(), nil
 }
 
-// bgraToRGBA byte-swaps a PixelPainter's BGRA buffer into (N)RGBA order —
-// shared by Icon (which then PNG-encodes it) and RenderChart (which hands
-// it straight to toolkit.NewImage, no PNG involved).
+// bgraToRGBA byte-swaps a PixelPainter's BGRA buffer into (N)RGBA order,
+// for Icon to hand to image/png.
 func bgraToRGBA(buf []byte) []byte {
 	pix := make([]byte, len(buf))
 	for i := 0; i+3 < len(buf); i += 4 {

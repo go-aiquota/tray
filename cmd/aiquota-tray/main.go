@@ -143,6 +143,7 @@ func run() int {
 			return
 		}
 		recordHistory(histStore, statuses)
+		RefreshHistoryWindows(histStore)
 		state.Set(menubar.Aggregate(statuses, thresholds))
 		item.SetMenu(menubar.BuildMenu(statuses, thresholds, sharedActions, providerChoices))
 		// The control item's own icon is redundant once ANY per-account item
