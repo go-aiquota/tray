@@ -11,7 +11,7 @@ require (
 	github.com/go-widgets/application v0.2.1-0.20260901150807-ef34e25d01e7
 	github.com/go-widgets/mvvm v0.9.0
 	github.com/go-widgets/painter v0.13.0
-	github.com/go-widgets/toolkit v0.311.0
+	github.com/go-widgets/toolkit v0.312.0
 	github.com/go-widgets/tray v0.9.0
 	github.com/go-widgets/window v0.64.0
 	github.com/hashicorp/go-plugin v1.8.0
