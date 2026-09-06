@@ -101,6 +101,8 @@ func RefreshHistoryWindows(store *history.Store) {
 			chart.Points = toChartPoints(series[key])
 			if duration, ok := menubar.SeriesWindowDuration(key); ok {
 				chart.Threshold = toThresholdPoints(series[key], duration)
+				chart.TimeMax = time.Now().Unix()
+				chart.TimeMin = chart.TimeMax - int64(duration.Seconds())
 			}
 		}
 		if r, ok := h.backend.(window.Repainter); ok {
@@ -124,6 +126,8 @@ func buildCharts(store *history.Store, accountID string) map[string]*toolkit.Tim
 		if duration, ok := menubar.SeriesWindowDuration(key); ok {
 			c.Threshold = toThresholdPoints(series[key], duration)
 			c.OverInk = menubar.OverPaceColor()
+			c.TimeMax = time.Now().Unix()
+			c.TimeMin = c.TimeMax - int64(duration.Seconds())
 		}
 		c.FormatValue = func(v float64) string { return fmt.Sprintf("%.0f%%", v) }
 		charts[key] = c
