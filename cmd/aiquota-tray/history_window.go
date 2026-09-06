@@ -146,15 +146,30 @@ func toChartPoints(pts []history.Point) []toolkit.TimePoint {
 	return out
 }
 
+// minPaceElapsedFraction is how far into a window Threshold starts
+// judging pace at all. Any nonzero usage in the first few minutes of a
+// 5-hour window extrapolates, by strict linear math, to blowing the
+// whole quota — flagging a single ordinary message right after a reset
+// as "over pace" (live-observed: 3% used at ~1% elapsed read as a fresh
+// violation moments after the color should have reset to normal). A
+// rate estimated from that little elapsed time isn't a real signal, so
+// points before this floor are left out of Threshold entirely — a
+// point with fewer at t looks up the LAST real sample at-or-before
+// t, per toolkit.TimeSeriesChart's own thresholdAt: the previous
+// window's late-stage (high) value, which nothing this early can
+// exceed. Once real data accumulates a sample past the floor, pace
+// judgment resumes as normal against the current window's own numbers.
+const minPaceElapsedFraction = 0.05
+
 // toThresholdPoints converts history.Points into the sustainable-pace
 // reference toolkit.TimeSeriesChart.Threshold draws against: at each
-// point, the percentage of window (its own known duration — see
-// menubar.SeriesWindowDuration) already elapsed as of ResetsAtUnix —
-// the usage level that would exhaust the quota EXACTLY at reset if held
-// steady from here. A point with no ResetsAtUnix (no provider value, or
-// recorded before that field existed) is skipped rather than guessed
-// at; toolkit.TimeSeriesChart's own thresholdAt lookup tolerates a
-// sparser Threshold than Points.
+// point past minPaceElapsedFraction, the percentage of window (its own
+// known duration — see menubar.SeriesWindowDuration) already elapsed as
+// of ResetsAtUnix — the usage level that would exhaust the quota
+// EXACTLY at reset if held steady from here. A point with no
+// ResetsAtUnix (no provider value, or recorded before that field
+// existed) is skipped rather than guessed at; toolkit.TimeSeriesChart's
+// own thresholdAt lookup tolerates a sparser Threshold than Points.
 func toThresholdPoints(pts []history.Point, window time.Duration) []toolkit.TimePoint {
 	out := make([]toolkit.TimePoint, 0, len(pts))
 	for _, p := range pts {
@@ -163,6 +178,9 @@ func toThresholdPoints(pts []history.Point, window time.Duration) []toolkit.Time
 		}
 		frac := (window.Seconds() - float64(p.ResetsAtUnix-p.AtUnix)) / window.Seconds()
 		frac = min(1, max(0, frac))
+		if frac < minPaceElapsedFraction {
+			continue
+		}
 		out = append(out, toolkit.TimePoint{At: p.AtUnix, Value: frac * 100})
 	}
 	return out
