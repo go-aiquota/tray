@@ -3,7 +3,10 @@
 
 package menubar
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestSeriesOrderIsStableAndComplete(t *testing.T) {
 	want := []string{"session", "weekly"}
@@ -69,5 +72,35 @@ func TestSeriesColorsAreDistinct(t *testing.T) {
 	weekly, _ := SeriesColor("weekly")
 	if session == weekly {
 		t.Fatal("session and weekly must not share a color")
+	}
+}
+
+func TestSeriesWindowDurationKnownKeys(t *testing.T) {
+	for key, want := range map[string]time.Duration{"session": 5 * time.Hour, "weekly": 7 * 24 * time.Hour} {
+		got, ok := SeriesWindowDuration(key)
+		if !ok {
+			t.Errorf("SeriesWindowDuration(%q): ok = false, want true", key)
+		}
+		if got != want {
+			t.Errorf("SeriesWindowDuration(%q) = %v, want %v", key, got, want)
+		}
+	}
+}
+
+func TestSeriesWindowDurationUnknownKey(t *testing.T) {
+	if _, ok := SeriesWindowDuration("not-a-real-series"); ok {
+		t.Fatal("SeriesWindowDuration(unknown key): ok = true, want false")
+	}
+}
+
+// TestOverPaceColorDiffersFromSeriesColors is the load-bearing proof: an
+// over-pace stretch of curve must not blend into either series' own
+// normal color, or the recoloring this exists for would be invisible.
+func TestOverPaceColorDiffersFromSeriesColors(t *testing.T) {
+	over := OverPaceColor()
+	for _, key := range SeriesOrder() {
+		if c, ok := SeriesColor(key); ok && c == over {
+			t.Errorf("OverPaceColor() matches SeriesColor(%q); an over-pace stretch would be indistinguishable from normal", key)
+		}
 	}
 }

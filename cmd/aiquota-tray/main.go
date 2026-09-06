@@ -241,7 +241,7 @@ func recordHistory(store *history.Store, statuses []menubar.AccountStatus) {
 			if !ok {
 				continue
 			}
-			p := history.Point{AtUnix: now, Used: w.Used, Limit: w.Limit}
+			p := history.Point{AtUnix: now, Used: w.Used, Limit: w.Limit, ResetsAtUnix: w.ResetsAtUnix}
 			if err := store.Append(s.AccountID, key, p); err != nil {
 				log.Printf("aiquota-tray: recording %s history for %s: %v", key, s.AccountID, err)
 			}
