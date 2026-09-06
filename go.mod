@@ -10,8 +10,8 @@ require (
 	github.com/go-webengine/engine v0.3.12-0.20260903142529-4ef49d77f4d4
 	github.com/go-widgets/application v0.2.1-0.20260901150807-ef34e25d01e7
 	github.com/go-widgets/mvvm v0.9.0
-	github.com/go-widgets/painter v0.12.0
-	github.com/go-widgets/toolkit v0.310.0
+	github.com/go-widgets/painter v0.13.0
+	github.com/go-widgets/toolkit v0.311.0
 	github.com/go-widgets/tray v0.9.0
 	github.com/go-widgets/window v0.64.0
 	github.com/hashicorp/go-plugin v1.8.0
@@ -30,8 +30,8 @@ require (
 	github.com/evanw/esbuild v0.28.2 // indirect
 	github.com/fatih/color v1.13.0 // indirect
 	github.com/go-browserhttp/browserhttp v0.2.0 // indirect
-	github.com/go-crdt/collab v0.44.0 // indirect
-	github.com/go-crdt/crdt v0.44.0 // indirect
+	github.com/go-crdt/collab v0.45.0 // indirect
+	github.com/go-crdt/crdt v0.46.0 // indirect
 	github.com/go-freedesktop/secretservice v0.1.0 // indirect
 	github.com/go-freedesktop/x11 v0.2.0 // indirect
 	github.com/go-gfx/gfx v0.19.0 // indirect
