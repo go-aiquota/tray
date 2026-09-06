@@ -218,7 +218,7 @@ func historyRoot(charts map[string]*toolkit.TimeSeriesChart) toolkit.Widget {
 	legend := toolkit.NewContainer(&toolkit.BoxLayout{Spacing: 6})
 	for _, key := range menubar.SeriesOrder() {
 		if c, ok := charts[key]; ok {
-			root.Add(toolkit.Item{Widget: c, Size: historyPanelHeight})
+			root.Add(toolkit.Item{Widget: c, Flex: 1})
 		}
 		ink, inkOK := menubar.SeriesColor(key)
 		label, labelOK := menubar.SeriesLabel(key)
