@@ -15,7 +15,11 @@
 // toolkit was filled properly instead.
 package menubar
 
-import "github.com/go-widgets/toolkit"
+import (
+	"time"
+
+	"github.com/go-widgets/toolkit"
+)
 
 // chartSeriesOrder is the fixed, stable order every history chart panel
 // (and a caller's legend) lists series in — not whatever order a map
@@ -61,4 +65,36 @@ var seriesInk = map[string]toolkit.RGBA{
 func SeriesColor(key string) (toolkit.RGBA, bool) {
 	c, ok := seriesInk[key]
 	return c, ok
+}
+
+// seriesWindowDuration is each series' own window length — session
+// resets on a rolling 5h cycle, weekly on a 7-day one, per the product's
+// own documented limits (quotapb.QuotaWindow's Label field comment: "e.g.
+// rolling 5h" for session). Neither is reported explicitly by a provider
+// (QuotaWindow carries only ResetsAtUnix, not how long the window
+// leading up to it lasted), so these are a fixed, documented assumption
+// rather than a value read off the wire — good enough for a pace
+// REFERENCE line, not a claim about the provider's exact contract.
+var seriesWindowDuration = map[string]time.Duration{
+	"session": 5 * time.Hour,
+	"weekly":  7 * 24 * time.Hour,
+}
+
+// SeriesWindowDuration returns how long a series' own window runs before
+// resetting — what a sustainable-pace reference line (see
+// history_window.go) divides elapsed time by to get "how far through the
+// window am I."
+func SeriesWindowDuration(key string) (time.Duration, bool) {
+	d, ok := seriesWindowDuration[key]
+	return d, ok
+}
+
+// OverPaceColor is the color a history chart's curve switches to for any
+// stretch where usage is running ahead of the sustainable pace that would
+// exhaust the window exactly at its reset — reusing SeverityCritical's
+// own red rather than inventing a second "something's wrong" color, since
+// that is exactly what it means: unchanged pace runs the account dry
+// before the window resets.
+func OverPaceColor() toolkit.RGBA {
+	return dotInk[SeverityCritical]
 }

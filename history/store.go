@@ -27,10 +27,19 @@ const Retention = 8 * 24 * time.Hour
 // Point is one sample: a window's used/limit at a moment in time.
 // AtUnix mirrors quotapb.QuotaWindow.ResetsAtUnix's own unix-seconds
 // convention rather than introducing a second time encoding.
+//
+// ResetsAtUnix carries that same window's reset time AS OF this poll (0
+// if the provider didn't report one, or for a point recorded before this
+// field existed) — enough, together with the series' own known window
+// duration, to work out how much of the window had elapsed at AtUnix,
+// which is what a sustainable-pace reference line is drawn from. It is
+// NOT a second series' own timestamp; every point in one series shares
+// the same clock as AtUnix.
 type Point struct {
-	AtUnix int64   `json:"at"`
-	Used   float64 `json:"used"`
-	Limit  float64 `json:"limit"`
+	AtUnix       int64   `json:"at"`
+	Used         float64 `json:"used"`
+	Limit        float64 `json:"limit"`
+	ResetsAtUnix int64   `json:"resets_at,omitempty"`
 }
 
 // Store persists points to one JSON file at Path: a map[string][]Point
