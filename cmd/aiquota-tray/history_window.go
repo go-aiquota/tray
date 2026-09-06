@@ -99,6 +99,9 @@ func RefreshHistoryWindows(store *history.Store) {
 		series := historySeriesFor(store, accountID)
 		for key, chart := range h.charts {
 			chart.Points = toChartPoints(series[key])
+			if duration, ok := menubar.SeriesWindowDuration(key); ok {
+				chart.Threshold = toThresholdPoints(series[key], duration)
+			}
 		}
 		if r, ok := h.backend.(window.Repainter); ok {
 			r.Repaint()
@@ -118,6 +121,10 @@ func buildCharts(store *history.Store, accountID string) map[string]*toolkit.Tim
 		if ink, ok := menubar.SeriesColor(key); ok {
 			c.Ink = ink
 		}
+		if duration, ok := menubar.SeriesWindowDuration(key); ok {
+			c.Threshold = toThresholdPoints(series[key], duration)
+			c.OverInk = menubar.OverPaceColor()
+		}
 		c.FormatValue = func(v float64) string { return fmt.Sprintf("%.0f%%", v) }
 		charts[key] = c
 	}
@@ -135,6 +142,28 @@ func toChartPoints(pts []history.Point) []toolkit.TimePoint {
 			continue
 		}
 		out = append(out, toolkit.TimePoint{At: p.AtUnix, Value: p.Used / p.Limit * 100})
+	}
+	return out
+}
+
+// toThresholdPoints converts history.Points into the sustainable-pace
+// reference toolkit.TimeSeriesChart.Threshold draws against: at each
+// point, the percentage of window (its own known duration — see
+// menubar.SeriesWindowDuration) already elapsed as of ResetsAtUnix —
+// the usage level that would exhaust the quota EXACTLY at reset if held
+// steady from here. A point with no ResetsAtUnix (no provider value, or
+// recorded before that field existed) is skipped rather than guessed
+// at; toolkit.TimeSeriesChart's own thresholdAt lookup tolerates a
+// sparser Threshold than Points.
+func toThresholdPoints(pts []history.Point, window time.Duration) []toolkit.TimePoint {
+	out := make([]toolkit.TimePoint, 0, len(pts))
+	for _, p := range pts {
+		if p.ResetsAtUnix <= 0 {
+			continue
+		}
+		frac := (window.Seconds() - float64(p.ResetsAtUnix-p.AtUnix)) / window.Seconds()
+		frac = min(1, max(0, frac))
+		out = append(out, toolkit.TimePoint{At: p.AtUnix, Value: frac * 100})
 	}
 	return out
 }
