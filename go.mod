@@ -13,7 +13,7 @@ require (
 	github.com/go-widgets/painter v0.13.0
 	github.com/go-widgets/toolkit v0.316.0
 	github.com/go-widgets/tray v0.10.0
-	github.com/go-widgets/window v0.73.0
+	github.com/go-widgets/window v0.76.0
 	github.com/hashicorp/go-plugin v1.8.0
 )
 
