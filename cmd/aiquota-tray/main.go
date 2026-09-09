@@ -13,6 +13,7 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	_ "embed"
 	"encoding/hex"
 	"fmt"
 	"log"
@@ -28,9 +29,19 @@ import (
 	"github.com/go-aiquota/tray/history"
 	"github.com/go-aiquota/tray/menubar"
 	"github.com/go-aiquota/tray/quota"
+	"github.com/go-macos/objc"
 	"github.com/go-widgets/mvvm"
 	"github.com/go-widgets/toolkit"
 )
+
+// dockIconPNG is the go-aiquota brand mark, shown as the Dock/Cmd+Tab
+// icon whenever this otherwise menu-bar-only (accessory-policy) process
+// briefly becomes Regular to show a real window (see openHistoryWindow) —
+// an unsigned binary with no Info.plist icon resource otherwise gets no
+// icon at all for that Dock tile, not merely a generic one.
+//
+//go:embed assets/dockicon.png
+var dockIconPNG []byte
 
 // init locks the main goroutine to the process's main OS thread before
 // anything else runs. Both the tray backend and the onboarding window need
@@ -70,6 +81,7 @@ func run() int {
 	if err := toolkit.UseOpenTypeText(); err != nil {
 		log.Printf("aiquota-tray: falling back to the bitmap font: %v", err)
 	}
+	objc.SetApplicationIconImage(dockIconPNG)
 
 	path, err := account.DefaultPath()
 	if err != nil {
