@@ -3,16 +3,16 @@ module github.com/go-aiquota/tray
 go 1.26.4
 
 require (
-	github.com/go-aiquota/proto v0.0.0-20260904115537-ab4aafbf51e8
+	github.com/go-aiquota/proto v0.0.0-20260908121902-364f200d51f2
 	github.com/go-keyring/keyring v0.3.0
 	github.com/go-macos/objc v0.10.2
 	github.com/go-webengine/browserproxy v0.0.0-20260905061713-985c5ac620e6
-	github.com/go-webengine/engine v0.3.12-0.20260907212526-c71d07c9a32b
-	github.com/go-widgets/application v0.2.1-0.20260907190124-44dd4b534036
+	github.com/go-webengine/engine v0.3.12-0.20260909200704-7b7169ea4d0e
+	github.com/go-widgets/application v0.2.1-0.20260908122241-b365cee673ea
 	github.com/go-widgets/mvvm v0.9.0
 	github.com/go-widgets/painter v0.13.0
 	github.com/go-widgets/toolkit v0.316.0
-	github.com/go-widgets/tray v0.10.0
+	github.com/go-widgets/tray v0.10.1
 	github.com/go-widgets/window v0.76.0
 	github.com/hashicorp/go-plugin v1.8.0
 )
