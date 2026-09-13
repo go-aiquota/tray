@@ -8,12 +8,12 @@ require (
 	github.com/go-macos/objc v0.10.2
 	github.com/go-webengine/browserproxy v0.0.0-20260905061713-985c5ac620e6
 	github.com/go-webengine/engine v0.3.12-0.20260909200704-7b7169ea4d0e
-	github.com/go-widgets/application v0.2.1-0.20260908122241-b365cee673ea
+	github.com/go-widgets/application v0.2.1-0.20260911083617-5b362a98f8ba
 	github.com/go-widgets/mvvm v0.9.0
 	github.com/go-widgets/painter v0.13.0
 	github.com/go-widgets/toolkit v0.316.0
-	github.com/go-widgets/tray v0.10.1
-	github.com/go-widgets/window v0.76.0
+	github.com/go-widgets/tray v0.11.0
+	github.com/go-widgets/window v0.77.0
 	github.com/hashicorp/go-plugin v1.8.0
 )
 
@@ -68,7 +68,7 @@ require (
 	golang.org/x/crypto v0.55.0 // indirect
 	golang.org/x/image v0.45.0 // indirect
 	golang.org/x/net v0.58.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/text v0.41.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260904194346-d0f1323225a4 // indirect
 	google.golang.org/grpc v1.83.2 // indirect
