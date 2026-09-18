@@ -7,7 +7,7 @@ require (
 	github.com/go-keyring/keyring v0.3.0
 	github.com/go-macos/objc v0.10.2
 	github.com/go-webengine/browserproxy v0.0.0-20260905061713-985c5ac620e6
-	github.com/go-webengine/engine v0.3.12-0.20260914070417-dc49d443790b
+	github.com/go-webengine/engine v0.3.12-0.20260917063904-e11d14daf8e1
 	github.com/go-widgets/application v0.2.1-0.20260914093602-d685b646d6cb
 	github.com/go-widgets/mvvm v0.9.0
 	github.com/go-widgets/painter v0.13.0
@@ -25,7 +25,7 @@ require (
 	github.com/coder/websocket v1.8.15 // indirect
 	github.com/danieljoos/wincred v1.2.3 // indirect
 	github.com/dlclark/regexp2/v2 v2.5.2 // indirect
-	github.com/dop251/goja v0.0.0-20260911104922-fabc3b8078ad // indirect
+	github.com/dop251/goja v0.0.0-20260915173639-b3fa02110dbd // indirect
 	github.com/ebitengine/purego v0.11.0 // indirect
 	github.com/evanw/esbuild v0.28.2 // indirect
 	github.com/fatih/color v1.13.0 // indirect
