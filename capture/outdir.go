@@ -4,9 +4,7 @@
 package capture
 
 import (
-	"fmt"
-	"os"
-	"path/filepath"
+	"github.com/go-appdirs/outdir"
 )
 
 // OutDirEnv overrides where a capture file is written. Still checked
@@ -26,41 +24,26 @@ const OutDirEnv = "GO_AIQUOTA_CAPTURE_DIR"
 // want is the caller's choice, or "" to use the default
 // (os.UserConfigDir()/go-aiquota/captures, overridable via OutDirEnv).
 func OutDir(want string) (string, error) {
-	dir, chosen := want, OutDirEnv
-	if dir == "" {
-		chosen = "the default capture directory"
-		base, err := os.UserConfigDir()
-		if err != nil {
-			return "", fmt.Errorf("no user configuration directory to keep captures in: %w", err)
-		}
-		dir = filepath.Join(base, "go-aiquota", "captures")
-	}
-	abs, err := filepath.Abs(dir)
-	if err != nil {
-		return "", fmt.Errorf("%s (%q): %w", chosen, dir, err)
-	}
-	if root := repoRootOf(abs); root != "" {
-		return "", fmt.Errorf("%s (%q) is inside the git work tree at %s; "+
-			"a capture of real account traffic must never be written where it can be committed",
-			chosen, abs, root)
-	}
-	return abs, nil
+	// ⛔ The decision moved to go-appdirs/outdir, which owns the question and
+	// is used by go-macos/screencapture, go-mswin/screencapture and
+	// go-widgets/window too. The same sixty lines lived in all four, and
+	// adopting the shared one CLOSED A HOLE: this copy walked up from the
+	// path as given, resolving nothing, so a directory reached through a
+	// symbolic link found no work tree and was accepted. outdir resolves the
+	// path first and refuses it.
+	//
+	// That matters more here than anywhere else in the family: a capture from
+	// this package is not pixels, it is a logged-in account's real traffic.
+	return outdir.Choose(outdir.Spec{
+		App:  "go-aiquota",
+		Env:  OutDirEnv,
+		Sub:  "captures",
+		Want: want,
+	})
 }
 
 // repoRootOf returns the work tree dir is inside, or "" if it is in none.
 // It walks all the way to the filesystem root: a capture directory several
 // levels below a checkout is still in the checkout.
-func repoRootOf(dir string) string {
-	for d := dir; ; {
-		// A .git that is a FILE is a worktree or a submodule, and commits
-		// just as well as a directory does.
-		if fi, err := os.Stat(filepath.Join(d, ".git")); err == nil && (fi.IsDir() || fi.Mode().IsRegular()) {
-			return d
-		}
-		parent := filepath.Dir(d)
-		if parent == d {
-			return ""
-		}
-		d = parent
-	}
-}
+// repoRootOf is outdir's, kept so the tests below read as they did.
+func repoRootOf(dir string) string { return outdir.RepoRootOf(dir) }

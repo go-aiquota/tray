@@ -49,8 +49,13 @@ func TestOutDirRefusesAnythingInsideTheWorkTree(t *testing.T) {
 			if err == nil {
 				t.Fatalf("OutDir(%q) = %q, want a refusal", tc.want, got)
 			}
-			if !strings.Contains(err.Error(), "must never be written where it can be committed") {
-				t.Errorf("refused for the wrong reason: %v", err)
+			// ⛔ On what the refusal has to TELL somebody, not on its
+			// wording. It matched a phrase this package wrote itself; the
+			// phrase belongs to go-appdirs/outdir now and reads differently,
+			// while the behaviour did not change. A test that pins prose
+			// fails on a rename and passes on a silent change of meaning.
+			if !strings.Contains(err.Error(), "work tree") {
+				t.Errorf("the refusal does not say it found a work tree: %v", err)
 			}
 		})
 	}
