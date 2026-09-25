@@ -4,6 +4,7 @@ go 1.26.4
 
 require (
 	github.com/go-aiquota/proto v0.0.0-20260919014522-9b2214760b3e
+	github.com/go-appdirs/outdir v0.2.0
 	github.com/go-keyring/keyring v0.3.0
 	github.com/go-macos/objc v0.10.2
 	github.com/go-webengine/browserproxy v0.0.0-20260919063545-945de594519b
