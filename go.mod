@@ -12,7 +12,7 @@ require (
 	github.com/go-widgets/mvvm v0.9.0
 	github.com/go-widgets/painter v0.13.0
 	github.com/go-widgets/toolkit v0.316.0
-	github.com/go-widgets/tray v0.11.0
+	github.com/go-widgets/tray v0.12.0
 	github.com/go-widgets/window v0.78.0
 	github.com/hashicorp/go-plugin v1.8.0
 )
@@ -40,7 +40,7 @@ require (
 	github.com/go-images/images v0.0.0-20260912071231-12ebfec58453 // indirect
 	github.com/go-macos/appkit v0.6.0 // indirect
 	github.com/go-macos/keychain v0.1.0 // indirect
-	github.com/go-mswin/win32 v0.4.0 // indirect
+	github.com/go-mswin/win32 v0.5.0 // indirect
 	github.com/go-opentype/fonts v0.9.1-0.20260907071658-dd9656234a3d // indirect
 	github.com/go-opentype/opentype v0.12.0 // indirect
 	github.com/go-opentype/shape v0.5.0 // indirect
