@@ -8,11 +8,11 @@ require (
 	github.com/go-keyring/keyring v0.3.0
 	github.com/go-macos/objc v0.10.2
 	github.com/go-webengine/browserproxy v0.0.0-20260919063545-945de594519b
-	github.com/go-webengine/engine v0.3.12-0.20260925203208-304eadfe0f41
+	github.com/go-webengine/engine v0.3.12-0.20260926212703-0810cd876104
 	github.com/go-widgets/application v0.2.1-0.20260925092511-d04eacf72a73
 	github.com/go-widgets/mvvm v0.9.0
 	github.com/go-widgets/painter v0.13.0
-	github.com/go-widgets/toolkit v0.320.0
+	github.com/go-widgets/toolkit v0.321.0
 	github.com/go-widgets/tray v0.12.0
 	github.com/go-widgets/window v0.83.0
 	github.com/hashicorp/go-plugin v1.8.0
@@ -30,8 +30,8 @@ require (
 	github.com/evanw/esbuild v0.28.2 // indirect
 	github.com/fatih/color v1.13.0 // indirect
 	github.com/go-browserhttp/browserhttp v0.2.0 // indirect
-	github.com/go-crdt/collab v0.62.0 // indirect
-	github.com/go-crdt/crdt v0.49.0 // indirect
+	github.com/go-crdt/collab v0.70.0 // indirect
+	github.com/go-crdt/crdt v0.51.0 // indirect
 	github.com/go-freedesktop/secretservice v0.1.0 // indirect
 	github.com/go-freedesktop/x11 v0.2.0 // indirect
 	github.com/go-gfx/gfx v0.26.0 // indirect
