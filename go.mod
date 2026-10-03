@@ -9,7 +9,7 @@ require (
 	github.com/go-macos/objc v0.10.2
 	github.com/go-webengine/browserproxy v0.0.0-20260919063545-945de594519b
 	github.com/go-webengine/engine v0.3.12-0.20260930072453-1164cc0007d6
-	github.com/go-widgets/application v0.2.1-0.20260930101930-193ca0c235cc
+	github.com/go-widgets/application v0.2.1-0.20261002102043-ce506c6e7285
 	github.com/go-widgets/mvvm v0.9.0
 	github.com/go-widgets/painter v0.13.0
 	github.com/go-widgets/toolkit v0.321.2
