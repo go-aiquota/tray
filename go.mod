@@ -3,18 +3,18 @@ module github.com/go-aiquota/tray
 go 1.27.1
 
 require (
-	github.com/go-aiquota/proto v0.0.0-20260927173035-fe686a6d6a59
-	github.com/go-appdirs/outdir v0.2.0
-	github.com/go-keyring/keyring v0.3.0
-	github.com/go-macos/objc v0.10.2
-	github.com/go-webengine/browserproxy v0.0.0-20260919063545-945de594519b
-	github.com/go-webengine/engine v0.3.12-0.20260930072453-1164cc0007d6
-	github.com/go-widgets/application v0.2.1-0.20260930101930-193ca0c235cc
-	github.com/go-widgets/mvvm v0.9.0
-	github.com/go-widgets/painter v0.13.0
-	github.com/go-widgets/toolkit v0.321.2
-	github.com/go-widgets/tray v0.12.0
-	github.com/go-widgets/window v0.83.0
+	github.com/go-aiquota/proto v0.0.0-20261004223757-f2b5ca7be72d
+	github.com/go-appdirs/outdir v0.3.0
+	github.com/go-keyring/keyring v0.4.0
+	github.com/go-macos/objc v0.11.0
+	github.com/go-webengine/browserproxy v0.1.0
+	github.com/go-webengine/engine v0.5.0
+	github.com/go-widgets/application v0.7.0
+	github.com/go-widgets/mvvm v0.11.0
+	github.com/go-widgets/painter v0.15.0
+	github.com/go-widgets/toolkit v0.326.0
+	github.com/go-widgets/tray v0.14.0
+	github.com/go-widgets/window v0.86.1
 	github.com/hashicorp/go-plugin v1.8.0
 )
 
@@ -59,7 +59,7 @@ require (
 	github.com/grpc-transports/websocket v0.2.0 // indirect
 	github.com/hashicorp/go-hclog v1.6.3 // indirect
 	github.com/hashicorp/yamux v0.1.2 // indirect
-	github.com/klauspost/compress v1.17.4 // indirect
+	github.com/klauspost/compress v1.18.7 // indirect
 	github.com/mattn/go-colorable v0.1.12 // indirect
 	github.com/mattn/go-isatty v0.0.17 // indirect
 	github.com/oklog/run v1.1.0 // indirect
@@ -75,6 +75,6 @@ require (
 	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260904194346-d0f1323225a4 // indirect
-	google.golang.org/grpc v1.84.0 // indirect
+	google.golang.org/grpc v1.85.0-dev.0.20260825072537-93e31b48545e // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 )
