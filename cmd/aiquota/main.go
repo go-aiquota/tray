@@ -21,12 +21,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"os/exec"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/go-aiquota/proto/quotapb"
 	"github.com/go-aiquota/proto/redact"
@@ -73,7 +76,16 @@ type realBackend struct {
 func (b *realBackend) Accounts() ([]account.Account, error) { return b.store.List() }
 func (b *realBackend) Close()                               { b.mgr.Close() }
 
+// claudeCodeAccount is the virtual account for Claude Code's own login: the
+// same account, plan and windows as the VS Code extension's Account & usage
+// panel. It has no stored credential — the plugin reads Claude Code's own
+// storage at fetch time, so nothing secret passes through here at all.
+var claudeCodeAccount = account.Account{ID: "claude-code", Provider: "claude", Label: "Claude Code"}
+
 func (b *realBackend) Fetch(ctx context.Context, a account.Account) (*quotapb.QuotaSnapshot, error) {
+	if a.ID == claudeCodeAccount.ID {
+		return b.mgr.FetchQuota(ctx, a.Provider, a.Label, map[string]string{"source": "claude-code"})
+	}
 	cred, err := b.store.Credential(a.ID)
 	if err != nil {
 		return nil, fmt.Errorf("credential: %w", err)
@@ -187,7 +199,15 @@ func exitCode(v stamp.Verdict) int {
 	return exitUnknown
 }
 
-func clean(err error) string { return redact.New().String(err.Error()) }
+// clean is err's message with credential-shaped text removed; for a gRPC
+// error only its description is kept ("rpc error: code = X desc = " is noise).
+func clean(err error) string {
+	msg := err.Error()
+	if s, ok := status.FromError(err); ok {
+		msg = s.Message()
+	}
+	return redact.New().String(msg)
+}
 
 func unreadable(problem string) stamp.Stamp {
 	return stamp.Stamp{Version: stamp.Version, At: now().UTC(), Verdict: stamp.Unknown, Problems: []string{problem}}
@@ -197,6 +217,53 @@ func unreadable(problem string) stamp.Stamp {
 // problem plus an Unknown window, never a silent omission.
 func measure(ctx context.Context, be backend, provider, only string, timeout time.Duration) stamp.Stamp {
 	st := stamp.Stamp{Version: stamp.Version, At: now().UTC()}
+
+	// query records one account's windows (or its failure) in st and reports
+	// whether the failure was "no such login" (gRPC NotFound).
+	query := func(a account.Account) (notFound bool) {
+		cctx, cancel := context.WithTimeout(ctx, timeout)
+		snap, err := fetchWithin(cctx, be, a)
+		cancel()
+		if err != nil || snap == nil {
+			msg := "no snapshot"
+			if err != nil {
+				msg = clean(err)
+			}
+			if status.Code(err) == codes.NotFound && a.ID == claudeCodeAccount.ID {
+				return true // nothing recorded: the caller decides whether to fall back
+			}
+			st.Problems = append(st.Problems, a.Label+": "+msg)
+			st.Windows = append(st.Windows, stamp.Window{Account: a.Label, Label: "(unreadable)", Verdict: stamp.Unknown, Note: msg})
+			return false
+		}
+		if snap.PlanKind != "" {
+			st.Plans = append(st.Plans, a.Label+"="+snap.PlanKind)
+		}
+		for _, w := range snap.Windows {
+			win := windowOf(a.Label, w)
+			win.Plan = snap.PlanKind
+			st.Windows = append(st.Windows, win)
+		}
+		for _, warn := range snap.Warnings {
+			st.Problems = append(st.Problems, a.Label+": warning: "+warn)
+		}
+		if len(snap.Windows) == 0 {
+			st.Windows = append(st.Windows, stamp.Window{Account: a.Label, Label: "(no window reported)", Verdict: stamp.Unknown})
+		}
+		return false
+	}
+
+	wantClaudeCode := only == "" || strings.EqualFold(only, claudeCodeAccount.ID) || strings.EqualFold(only, claudeCodeAccount.Label)
+	if wantClaudeCode && provider == claudeCodeAccount.Provider {
+		// Default source: Claude Code's own login, the same view as the VS
+		// Code extension. Other accounts are the fallback, used only when no
+		// Claude Code login exists (or when named with --account).
+		if !query(claudeCodeAccount) || only != "" {
+			st.Verdict = stamp.Overall(st.Windows)
+			return st
+		}
+	}
+
 	accts, err := be.Accounts()
 	if err != nil {
 		st.Verdict = stamp.Unknown
@@ -209,33 +276,10 @@ func measure(ctx context.Context, be backend, provider, only string, timeout tim
 			continue
 		}
 		n++
-		cctx, cancel := context.WithTimeout(ctx, timeout)
-		snap, err := fetchWithin(cctx, be, a)
-		cancel()
-		if err != nil || snap == nil {
-			msg := "no snapshot"
-			if err != nil {
-				msg = clean(err)
-			}
-			st.Problems = append(st.Problems, a.Label+": "+msg)
-			st.Windows = append(st.Windows, stamp.Window{Account: a.Label, Label: "(unreadable)", Verdict: stamp.Unknown, Note: msg})
-			continue
-		}
-		if snap.PlanKind != "" {
-			st.Plans = append(st.Plans, a.Label+"="+snap.PlanKind)
-		}
-		for _, w := range snap.Windows {
-			st.Windows = append(st.Windows, windowOf(a.Label, w))
-		}
-		for _, warn := range snap.Warnings {
-			st.Problems = append(st.Problems, a.Label+": warning: "+warn)
-		}
-		if len(snap.Windows) == 0 {
-			st.Windows = append(st.Windows, stamp.Window{Account: a.Label, Label: "(no window reported)", Verdict: stamp.Unknown})
-		}
+		query(a)
 	}
 	if n == 0 {
-		st.Problems = append(st.Problems, "no matching "+provider+" account")
+		st.Problems = append(st.Problems, "no Claude Code login and no matching "+provider+" account")
 	}
 	st.Verdict = stamp.Overall(st.Windows)
 	return st
@@ -258,7 +302,7 @@ func fetchWithin(ctx context.Context, be backend, a account.Account) (*quotapb.Q
 	case r := <-ch:
 		return r.snap, r.err
 	case <-ctx.Done():
-		return nil, fmt.Errorf("no answer within the timeout: most likely a macOS keychain dialog (\"aiquota wants to use your confidential information\") that nobody answered. One-time fix: run `aiquota status` in Terminal.app and click \"Always Allow\" (re-needed after each reinstall, the item's ACL pins the binary's cdhash): %w", ctx.Err())
+		return nil, fmt.Errorf("no answer within the timeout (a stored claude.ai account: most likely a macOS keychain dialog nobody answered, \"Always Allow\" once; the Claude Code source needs no dialog): %w", ctx.Err())
 	}
 }
 
@@ -278,28 +322,67 @@ func windowOf(acct string, w *quotapb.QuotaWindow) stamp.Window {
 	return out
 }
 
+// panelPercent is what the panel's bar prints: floor of the value clamped to
+// 0..100 (webview dle: Math.floor(Math.min(100, Math.max(0, t)))).
+func panelPercent(p float64) int {
+	return int(math.Floor(math.Min(100, math.Max(0, p))))
+}
+
+// panelReset mirrors webview Zy(resetsAt, display, showDay): "soon" under a
+// minute; "at HH:MM" for a window shown without its day (the 5-hour session)
+// that resets within 24 h; otherwise "Ddd, Mon D at HH:MM" (with the year when
+// it is not the current one). Times are local, 24 h.
+func panelReset(unix int64, label string, at time.Time) string {
+	t := time.Unix(unix, 0)
+	remaining := t.Sub(at)
+	if remaining < time.Minute {
+		return "soon"
+	}
+	clock := t.Local().Format("15:04")
+	showDay := !strings.HasPrefix(strings.ToLower(label), "session")
+	if remaining < 24*time.Hour && !showDay {
+		return "at " + clock
+	}
+	day := t.Local().Format("Mon, Jan 2")
+	if t.Local().Year() != at.Local().Year() {
+		day = t.Local().Format("Mon, Jan 2, 2006")
+	}
+	return day + " at " + clock
+}
+
 func render(w io.Writer, st stamp.Stamp, format string) error {
 	if format == "json" {
 		enc := json.NewEncoder(w)
 		enc.SetIndent("", "  ")
 		return enc.Encode(st)
 	}
+	// The same labels, order, whole percentages and reset wording as the VS
+	// Code extension's "Account & usage" panel (webview/index.js: WDn, dle,
+	// Zy), so the two can be compared line by line:
+	//
+	//	Session (5hr)    37%   Resets at 14:00
+	//	Weekly (7 day)   52%   Resets Thu, Nov 12 at 03:00
 	fmt.Fprintf(w, "measured %s\n", st.At.Local().Format("2006-01-02 15:04 MST"))
-	if len(st.Plans) > 0 {
-		fmt.Fprintf(w, "plan: %s\n", strings.Join(st.Plans, ", "))
-	} else {
-		fmt.Fprintln(w, "plan: unknown")
-	}
+	last := ""
 	for _, x := range st.Windows {
-		reset := "reset unknown"
-		if x.ResetsAtUnix > 0 {
-			reset = "resets " + time.Unix(x.ResetsAtUnix, 0).Format("2006-01-02 15:04 MST")
+		if x.Account != last {
+			last = x.Account
+			plan := x.Plan
+			if plan == "" {
+				plan = "unknown"
+			}
+			fmt.Fprintf(w, "Account: %s\nPlan: %s\n", x.Account, plan)
 		}
-		used := "used ?"
+		line := fmt.Sprintf("%-16s", x.Label)
 		if x.Limit > 0 {
-			used = fmt.Sprintf("used %.0f%%", x.UsedPercent)
+			line += fmt.Sprintf(" %3d%%", panelPercent(x.UsedPercent))
+			if x.ResetsAtUnix > 0 {
+				line += "   Resets " + panelReset(x.ResetsAtUnix, x.Label, now())
+			}
+		} else {
+			line += "   ?"
 		}
-		fmt.Fprintf(w, "%-14s %-20s %-9s %-34s %s\n", x.Account, x.Label, used, reset, strings.ToUpper(string(x.Verdict)))
+		fmt.Fprintf(w, "%s   [%s]\n", line, strings.ToUpper(string(x.Verdict)))
 	}
 	for _, p := range st.Problems {
 		fmt.Fprintf(w, "problem: %s\n", p)

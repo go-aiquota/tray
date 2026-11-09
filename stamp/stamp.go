@@ -43,6 +43,7 @@ type Window struct {
 	UsedPercent  float64 `json:"used_percent"`
 	ResetsAtUnix int64   `json:"resets_at_unix"`
 	Verdict      Verdict `json:"verdict"`
+	Plan         string  `json:"plan,omitempty"`
 	Note         string  `json:"note,omitempty"`
 }
 
