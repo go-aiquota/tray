@@ -143,7 +143,7 @@ func statusCmd() *cobra.Command {
 	var (
 		acct, format, provider, stampPath string
 		debug                             bool
-		warn, critical                    int
+		warn, critical, bands             int
 		timeout                           time.Duration
 	)
 	c := &cobra.Command{
@@ -159,6 +159,9 @@ for the quotaclaim hook, whatever the verdict.`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if format != "text" && format != "json" && format != "statusbar" {
 				return fmt.Errorf("-o: want text, json or statusbar, got %q", format)
+			}
+			if bands < 2 || bands > len(palette) {
+				return fmt.Errorf("--bands: want 2 to %d, got %d", len(palette), bands)
 			}
 			if warn < 0 || critical < warn || critical > 100 {
 				return fmt.Errorf("--warn/--critical: want 0 <= warn <= critical <= 100, got %d/%d", warn, critical)
@@ -185,7 +188,7 @@ for the quotaclaim hook, whatever the verdict.`,
 				fmt.Fprintf(cmd.ErrOrStderr(), "aiquota: cannot write stamp: %s\n", clean(err))
 			}
 			if format == "statusbar" {
-				err = renderStatusBar(cmd.OutOrStdout(), st, warn, critical)
+				err = renderStatusBar(cmd.OutOrStdout(), st, warn, critical, bands)
 			} else {
 				err = render(cmd.OutOrStdout(), st, format)
 			}
@@ -199,6 +202,7 @@ for the quotaclaim hook, whatever the verdict.`,
 	c.Flags().StringVarP(&format, "output", "o", "text", "output format: text, json, or statusbar (one JSON line: text, tooltip, level, for an editor status bar)")
 	c.Flags().IntVar(&warn, "warn", 75, "statusbar: percent from which the level is warn")
 	c.Flags().IntVar(&critical, "critical", 90, "statusbar: percent from which the level is error")
+	c.Flags().IntVar(&bands, "bands", 8, "statusbar: number of equal colour bands per window, 2 to 8 (8 = steps of 12.5%)")
 	c.Flags().StringVar(&provider, "provider", "claude", "provider plugin")
 	c.Flags().StringVar(&stampPath, "stamp", "", "stamp file (default os.UserConfigDir()/aiquota/last-status.json)")
 	c.Flags().BoolVar(&debug, "debug", false, "show the plugin client's DEBUG/TRACE log on stderr")
