@@ -15,6 +15,7 @@ require (
 	github.com/go-widgets/toolkit v0.340.0
 	github.com/go-widgets/tray v0.15.0
 	github.com/go-widgets/window v0.89.1
+	github.com/hashicorp/go-hclog v1.6.3
 	github.com/hashicorp/go-plugin v1.8.0
 	github.com/spf13/cobra v1.10.2
 	google.golang.org/grpc v1.86.0-dev
@@ -61,7 +62,6 @@ require (
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/pprof v0.0.0-20240727154555-813a5fbdbec8 // indirect
 	github.com/grpc-transports/websocket v0.4.0 // indirect
-	github.com/hashicorp/go-hclog v1.6.3 // indirect
 	github.com/hashicorp/yamux v0.1.2 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/klauspost/compress v1.18.7 // indirect

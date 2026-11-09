@@ -13,13 +13,19 @@ package quota
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 
+	"github.com/hashicorp/go-hclog"
 	hcplugin "github.com/hashicorp/go-plugin"
 
 	aiplugin "github.com/go-aiquota/proto/plugin"
 	"github.com/go-aiquota/proto/quotapb"
 )
+
+// PluginLogLevel is the level of the plugin client's own log (handshake,
+// mTLS, stdio). Warn by default; a host raises it for diagnosis.
+var PluginLogLevel = hclog.Warn
 
 // BinaryLocator resolves a provider name (e.g. "claude") to the path of its
 // plugin executable. The host supplies this — Manager has no opinion on
@@ -86,6 +92,9 @@ func (m *Manager) clientFor(provider string) (quotapb.QuotaProviderClient, error
 			return nil, fmt.Errorf("quota: locating %s plugin: %w", provider, err)
 		}
 		cfg := aiplugin.ClientConfig(path)
+		// go-plugin logs every handshake step at DEBUG/TRACE/INFO to stderr;
+		// keep Warn and above unless the host asks for more.
+		cfg.Logger = hclog.New(&hclog.LoggerOptions{Name: "plugin", Level: PluginLogLevel, Output: os.Stderr})
 		c = hcplugin.NewClient(&cfg)
 		m.clients[provider] = c
 	}

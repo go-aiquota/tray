@@ -27,6 +27,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hashicorp/go-hclog"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -141,6 +142,7 @@ func RootCmd() *cobra.Command {
 func statusCmd() *cobra.Command {
 	var (
 		acct, format, provider, stampPath string
+		debug                             bool
 		timeout                           time.Duration
 	)
 	c := &cobra.Command{
@@ -156,6 +158,9 @@ for the quotaclaim hook, whatever the verdict.`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if format != "text" && format != "json" {
 				return fmt.Errorf("-o: want text or json, got %q", format)
+			}
+			if debug {
+				quota.PluginLogLevel = hclog.Debug
 			}
 			be, err := newBackend()
 			var st stamp.Stamp
@@ -185,6 +190,7 @@ for the quotaclaim hook, whatever the verdict.`,
 	c.Flags().StringVarP(&format, "output", "o", "text", "output format: text or json")
 	c.Flags().StringVar(&provider, "provider", "claude", "provider plugin")
 	c.Flags().StringVar(&stampPath, "stamp", "", "stamp file (default os.UserConfigDir()/aiquota/last-status.json)")
+	c.Flags().BoolVar(&debug, "debug", false, "show the plugin client's DEBUG/TRACE log on stderr")
 	c.Flags().DurationVar(&timeout, "timeout", 20*time.Second, "per-account timeout")
 	return c
 }
