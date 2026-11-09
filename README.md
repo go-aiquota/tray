@@ -62,7 +62,15 @@ orange, dark orange, then the theme's warning and error backgrounds: VS Code's
 extension API honours only those two backgrounds, so every other step is a
 text colour, measured at WCAG contrast of at least 3:1 against the default
 status bar (#007ACC in Dark+ and Light+, #68217A with no folder) by a Go test.
-UNKNOWN is one grey "Claude ?" item. The [VS Code
+UNKNOWN is one grey "Claude ?" item. `--render 1` (v0.6.0) prints the generic
+render description the extension draws as it is: `{render, items, detail,
+poll_seconds, level, verdict}` with, per item, `id`, `text`, `tooltip`, `color`
+(hex or theme colour id), `background`, `priority` (an offset from the user's
+base), `alignment` and `command` (`detail`, `refresh`, `none`). The number of
+items, their order, labels, colours, bands, click actions and the poll interval
+are decided in Go, so changing the look is a `go install` of a new `aiquota`
+and a click on the item, never a reload of the editor; render 1 stays
+supported when a later render exists. The [VS Code
 extension](https://github.com/go-aiquota/vscode-statusbar) shows them
 permanently and holds no logic of its own.
 
