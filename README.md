@@ -30,6 +30,40 @@ Early. Building bottom-up:
   page, no manual cookie copying) — see that project's PRs #89–95 for the
   interactive-rendering foundation this depends on.
 
+## Command line: `aiquota` and the `quotaclaim` gate
+
+```sh
+GOBIN=~/.local/bin go install github.com/go-aiquota/tray/cmd/aiquota@latest
+GOBIN=~/.local/bin go install github.com/go-aiquota/tray/cmd/quotaclaim@latest
+```
+
+`aiquota status [--account A] [-o json|text]` loads the Claude plugin, asks
+LIVE for every window (5 h session, weekly, per-model) and prints used %,
+the reset time (local, 24 h) and the plan. Exit status: **0** available,
+**1** exhausted, **3** UNKNOWN (could not read — never reported as available
+or exhausted), 2 usage error. Each run writes a stamp to
+`os.UserConfigDir()/aiquota/last-status.json` (time, windows, verdicts; no
+credential).
+
+`quotaclaim` is a Claude Code `Stop` / `SubagentStop` hook that refuses a
+reply asserting a usage-limit state ("weekly limit", "hit your limit",
+"resets Nov 12", "limite hebdomadaire", "bloqué jusqu'au", ...) unless a stamp
+younger than `--max-age` (default 10 min) backs it. It blocks with
+`{"decision":"block","reason":...}` naming `aiquota status`
+([hooks reference](https://code.claude.com/docs/en/hooks)). Add to
+`~/.claude/settings.json`:
+
+```json
+{"hooks": {
+  "Stop":         [{"hooks": [{"type": "command", "command": "~/.local/bin/quotaclaim"}]}],
+  "SubagentStop": [{"hooks": [{"type": "command", "command": "~/.local/bin/quotaclaim"}]}]
+}}
+```
+
+Why it exists: a session once told a user "blocked until Nov 12" from a dead
+subagent's error message, after the user had changed plan. A limit is a
+measurement, not a memory.
+
 ## Security
 
 A credential is never written to `accounts.json` (metadata only), never
