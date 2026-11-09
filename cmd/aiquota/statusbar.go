@@ -180,8 +180,11 @@ func buildStatusBar(st stamp.Stamp, warn, critical, bands int) statusBar {
 // renderStatusBar prints the contract at the version the client asked for.
 // Version 1 is exactly what v0.3.0 printed (no items), so an older client
 // keeps working against a newer binary; version 2 adds the items.
-func renderStatusBar(w io.Writer, st stamp.Stamp, warn, critical, bands, version int) error {
+func renderStatusBar(w io.Writer, st stamp.Stamp, warn, critical, bands, version, render int) error {
 	sb := buildStatusBar(st, warn, critical, bands)
+	if render == renderV1 {
+		return json.NewEncoder(w).Encode(buildRender(sb))
+	}
 	if version == 1 {
 		sb.Version, sb.Items = 1, nil
 	}
