@@ -59,6 +59,10 @@ type Stamp struct {
 	Windows  []Window  `json:"windows"`
 	Verdict  Verdict   `json:"verdict"`
 	Problems []string  `json:"problems,omitempty"`
+	// Stale is set, with the reason, when this is an earlier reading served
+	// again because the endpoint could not be asked (rate limited). At is
+	// still the moment it was really measured, so age checks stay honest.
+	Stale string `json:"stale,omitempty"`
 }
 
 // Overall folds window verdicts: exhausted beats unknown beats available, and
