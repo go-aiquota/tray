@@ -51,8 +51,18 @@ weekly) or `Claude ?` when UNKNOWN (the reasons are in the tooltip, never a
 number), `level` is `ok`, `warn`, `error` or `unknown` (`--warn 75`,
 `--critical 90`, percent of the worst window; an exhausted window is always
 `error`). The tooltip lists every window with its reset and the measurement
-time. The [VS Code extension](https://github.com/go-aiquota/vscode-statusbar)
-shows it permanently and holds no logic of its own.
+time. Since v0.4.0 (`version` 2) it also carries `items`, one per window (session,
+weekly, and a per-model window when above zero), each with `text`, `percent`,
+`band` (0 to 7, equal steps of 12.5 %; `--bands N`, 2 to 8, for coarser steps;
+-1 when unknown), `color` (hex) and `background` (`none`, `warning`, `error`).
+The 8 steps are light green, dark green, light yellow, dark yellow, light
+orange, dark orange, then the theme's warning and error backgrounds: VS Code's
+extension API honours only those two backgrounds, so every other step is a
+text colour, measured at WCAG contrast of at least 3:1 against the default
+status bar (#007ACC in Dark+ and Light+, #68217A with no folder) by a Go test.
+UNKNOWN is one grey "Claude ?" item. The [VS Code
+extension](https://github.com/go-aiquota/vscode-statusbar) shows them
+permanently and holds no logic of its own.
 
 `quotaclaim` is a Claude Code `Stop` / `SubagentStop` hook that refuses a
 reply asserting a usage-limit state ("weekly limit", "hit your limit",
