@@ -90,6 +90,26 @@ func TestFetchErrorIsUnknownNeverAvailable(t *testing.T) {
 	}
 }
 
+type hang struct{ *fake }
+
+func (hang) Fetch(context.Context, account.Account) (*quotapb.QuotaSnapshot, error) {
+	select {} // ignores its context, like a keyring prompt nobody answers
+}
+
+func TestHungBackendIsUnknownNotAHang(t *testing.T) {
+	h := hang{one(nil)}
+	now = func() time.Time { return time.Date(2026, 11, 9, 10, 0, 0, 0, time.UTC) }
+	newBackend = func() (backend, error) { return h, nil }
+	path := filepath.Join(t.TempDir(), "s.json")
+	var o, e bytes.Buffer
+	if code := run([]string{"status", "--timeout", "50ms", "--stamp", path}, &o, &e); code != 3 {
+		t.Fatalf("code %d, want 3\n%s", code, o.String())
+	}
+	if st, _ := stamp.Read(path); st.Verdict != stamp.Unknown {
+		t.Fatalf("stamp %+v", st)
+	}
+}
+
 func TestNoLimitIsUnknown(t *testing.T) {
 	f := one(&quotapb.QuotaSnapshot{Windows: []*quotapb.QuotaWindow{{Label: "x", Used: 1}}})
 	if code, _, st := runStatus(t, f, "status"); code != 3 || st.Verdict != stamp.Unknown {

@@ -210,7 +210,7 @@ func measure(ctx context.Context, be backend, provider, only string, timeout tim
 		}
 		n++
 		cctx, cancel := context.WithTimeout(ctx, timeout)
-		snap, err := be.Fetch(cctx, a)
+		snap, err := fetchWithin(cctx, be, a)
 		cancel()
 		if err != nil || snap == nil {
 			msg := "no snapshot"
@@ -239,6 +239,27 @@ func measure(ctx context.Context, be backend, provider, only string, timeout tim
 	}
 	st.Verdict = stamp.Overall(st.Windows)
 	return st
+}
+
+// fetchWithin enforces ctx's deadline even where the backend cannot: the
+// keyring read (a presence prompt that may never be answered) takes no
+// context. A hung read is UNKNOWN, never a hang, so the gate stays usable.
+func fetchWithin(ctx context.Context, be backend, a account.Account) (*quotapb.QuotaSnapshot, error) {
+	type result struct {
+		snap *quotapb.QuotaSnapshot
+		err  error
+	}
+	ch := make(chan result, 1)
+	go func() {
+		s, err := be.Fetch(ctx, a)
+		ch <- result{s, err}
+	}()
+	select {
+	case r := <-ch:
+		return r.snap, r.err
+	case <-ctx.Done():
+		return nil, fmt.Errorf("no answer within the timeout (a credential prompt or the plugin did not respond): %w", ctx.Err())
+	}
 }
 
 func windowOf(acct string, w *quotapb.QuotaWindow) stamp.Window {
