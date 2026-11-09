@@ -54,6 +54,18 @@ outside the overall verdict). `--overlay` reproduces the panel's rows exactly,
 for the equality check; `-o json --raw` prints the usage response as received
 (it holds no credential) so you can see everything Claude returns.
 
+**One reading for every process.** The usage endpoint rate limits, and a machine
+runs several editor windows, the CLI and the `quotaclaim` gate. They share one
+reading, kept next to the stamp (`cache-*.json`, no credential): within
+`--min-interval` (default 1 m) a process reuses the last good reading and shows
+its real measurement time; one process at a time fetches (a lock file); a
+`Retry-After` is written down and honoured by all of them; and while the
+endpoint cannot be asked the last good reading is served marked `stale` (its age
+shown) for up to `--max-stale` (default 10 m), after which the answer is UNKNOWN.
+`--fresh` fetches now, still respecting a `Retry-After`; `--min-interval 0`
+disables sharing. `quotaclaim` keeps its own max-age check against the real
+measurement time, so a cached or stale reading counts with its true age.
+
 `-o statusbar` prints one JSON object `{version, text, tooltip, level,
 verdict}` for an editor status bar: `text` is `Claude 30% · 5%` (session ·
 weekly) or `Claude ?` when UNKNOWN (the reasons are in the tooltip, never a

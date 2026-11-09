@@ -188,6 +188,9 @@ func buildStatusBar(st stamp.Stamp, warn, critical, bands int) statusBar {
 		}
 		b.WriteString("\n")
 	}
+	if st.Stale != "" {
+		b.WriteString("STALE: " + st.Stale + "\n")
+	}
 	b.WriteString(at)
 	sb.Tooltip = b.String()
 	return sb

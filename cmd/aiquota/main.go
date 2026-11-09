@@ -25,6 +25,7 @@ import (
 	"math"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -173,9 +174,9 @@ func RootCmd() *cobra.Command {
 func statusCmd() *cobra.Command {
 	var (
 		acct, format, provider, stampPath string
-		debug, overlay, raw               bool
+		debug, overlay, raw, fresh        bool
 		warn, critical, bands, fver, rver int
-		timeout                           time.Duration
+		timeout, minInterval, maxStale    time.Duration
 	)
 	c := &cobra.Command{
 		Use:   "status",
@@ -221,20 +222,30 @@ for the quotaclaim hook, whatever the verdict.`,
 			if overlay {
 				claudeCodeView = "overlay"
 			}
-			be, err := newBackend()
-			var st stamp.Stamp
-			if err != nil {
-				st = unreadable(fmt.Sprintf("backend: %v", err))
-			} else {
-				defer be.Close()
-				st = measure(cmd.Context(), be, provider, acct, timeout)
-			}
 			path := stampPath
 			if path == "" {
+				var err error
 				if path, err = stamp.DefaultPath(); err != nil {
 					return err
 				}
 			}
+			fetch := func() stamp.Stamp {
+				be, err := newBackend()
+				if err != nil {
+					return unreadable(fmt.Sprintf("backend: %v", err))
+				}
+				defer be.Close()
+				return measure(cmd.Context(), be, provider, acct, timeout)
+			}
+			view := ""
+			if overlay {
+				view = "overlay"
+			}
+			st := resolve(sharedOpts{
+				dir: filepath.Dir(path), key: provider + "|" + acct + "|" + view,
+				minInterval: minInterval, maxStale: maxStale, fresh: fresh, lockWait: timeout + 5*time.Second,
+			}, fetch)
+			var err error
 			if err := stamp.Write(path, st); err != nil {
 				// Without a receipt the gate cannot be satisfied: say so loudly.
 				fmt.Fprintf(cmd.ErrOrStderr(), "aiquota: cannot write stamp: %s\n", clean(err))
@@ -263,6 +274,9 @@ for the quotaclaim hook, whatever the verdict.`,
 	c.Flags().StringVar(&stampPath, "stamp", "", "stamp file (default os.UserConfigDir()/aiquota/last-status.json)")
 	c.Flags().BoolVar(&debug, "debug", false, "show the plugin client's DEBUG/TRACE log on stderr")
 	c.Flags().DurationVar(&timeout, "timeout", 20*time.Second, "per-account timeout")
+	c.Flags().DurationVar(&minInterval, "min-interval", time.Minute, "all aiquota processes share one reading: reuse a reading younger than this (0 disables sharing)")
+	c.Flags().DurationVar(&maxStale, "max-stale", 10*time.Minute, "while the endpoint is rate limited, serve the last good reading marked stale for up to this long, then UNKNOWN")
+	c.Flags().BoolVar(&fresh, "fresh", false, "fetch now even inside --min-interval (a Retry-After still holds)")
 	return c
 }
 
@@ -443,6 +457,9 @@ func render(w io.Writer, st stamp.Stamp, format string) error {
 	//	Session (5hr)    37%   Resets at 14:00
 	//	Weekly (7 day)   52%   Resets Thu, Nov 12 at 03:00
 	fmt.Fprintf(w, "measured %s\n", st.At.Local().Format("2006-01-02 15:04 MST"))
+	if st.Stale != "" {
+		fmt.Fprintf(w, "stale: %s\n", st.Stale)
+	}
 	last := ""
 	for _, x := range st.Windows {
 		if x.Account != last {
