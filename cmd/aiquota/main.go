@@ -143,6 +143,7 @@ func statusCmd() *cobra.Command {
 	var (
 		acct, format, provider, stampPath string
 		debug                             bool
+		warn, critical                    int
 		timeout                           time.Duration
 	)
 	c := &cobra.Command{
@@ -156,8 +157,11 @@ A stamp is written to os.UserConfigDir()/aiquota/last-status.json (or --stamp)
 for the quotaclaim hook, whatever the verdict.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if format != "text" && format != "json" {
-				return fmt.Errorf("-o: want text or json, got %q", format)
+			if format != "text" && format != "json" && format != "statusbar" {
+				return fmt.Errorf("-o: want text, json or statusbar, got %q", format)
+			}
+			if warn < 0 || critical < warn || critical > 100 {
+				return fmt.Errorf("--warn/--critical: want 0 <= warn <= critical <= 100, got %d/%d", warn, critical)
 			}
 			if debug {
 				quota.PluginLogLevel = hclog.Debug
@@ -180,14 +184,21 @@ for the quotaclaim hook, whatever the verdict.`,
 				// Without a receipt the gate cannot be satisfied: say so loudly.
 				fmt.Fprintf(cmd.ErrOrStderr(), "aiquota: cannot write stamp: %s\n", clean(err))
 			}
-			if err := render(cmd.OutOrStdout(), st, format); err != nil {
+			if format == "statusbar" {
+				err = renderStatusBar(cmd.OutOrStdout(), st, warn, critical)
+			} else {
+				err = render(cmd.OutOrStdout(), st, format)
+			}
+			if err != nil {
 				return err
 			}
 			return codeError{code: exitCode(st.Verdict)}
 		},
 	}
 	c.Flags().StringVar(&acct, "account", "", "only this account (id or label)")
-	c.Flags().StringVarP(&format, "output", "o", "text", "output format: text or json")
+	c.Flags().StringVarP(&format, "output", "o", "text", "output format: text, json, or statusbar (one JSON line: text, tooltip, level, for an editor status bar)")
+	c.Flags().IntVar(&warn, "warn", 75, "statusbar: percent from which the level is warn")
+	c.Flags().IntVar(&critical, "critical", 90, "statusbar: percent from which the level is error")
 	c.Flags().StringVar(&provider, "provider", "claude", "provider plugin")
 	c.Flags().StringVar(&stampPath, "stamp", "", "stamp file (default os.UserConfigDir()/aiquota/last-status.json)")
 	c.Flags().BoolVar(&debug, "debug", false, "show the plugin client's DEBUG/TRACE log on stderr")
