@@ -60,6 +60,25 @@ younger than `--max-age` (default 10 min) backs it. It blocks with
 }}
 ```
 
+The matcher claims only statements about Claude's OWN usage ("5-hour limit",
+"weekly limit", "limite hebdomadaire", "hit your ... limit", "usage limit",
+"resets <date>" beside one of those, "bloqué jusqu'au", "quota Claude",
+"Opus/Sonnet limit"). Gateway vocabulary (soft/hard quota, `rate_limit_exceeded`,
+Retry-After, budgets, `max_tokens`, GitHub API rate limits) and denials ("not
+your usage limit") are never claims; the table test holds 39 such negatives.
+`quotaclaim scan` replays the matcher over `~/.claude/projects/*/*.jsonl`
+(read-only). With no usable measurement (none, stale, UNKNOWN) a claim passes
+only if its own sentence says "unknown" / "not measured"; a second Stop in the
+same turn (`stop_hook_active`) is never blocked, to avoid a loop.
+
+**First live read (macOS).** The credential is a login-keychain item
+(`go-aiquota:claude`) whose ACL trusts binaries by cdhash. A newly installed
+`aiquota` is not on that list, so its first read raises a keychain dialog that
+a headless session cannot answer (`aiquota status` then reports UNKNOWN after
+`--timeout`). One-time step, per installed version: run `aiquota status` in
+Terminal.app and click **Always Allow** (login password). No secret is copied
+anywhere.
+
 Why it exists: a session once told a user "blocked until Nov 12" from a dead
 subagent's error message, after the user had changed plan. A limit is a
 measurement, not a memory.

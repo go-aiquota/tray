@@ -258,7 +258,7 @@ func fetchWithin(ctx context.Context, be backend, a account.Account) (*quotapb.Q
 	case r := <-ch:
 		return r.snap, r.err
 	case <-ctx.Done():
-		return nil, fmt.Errorf("no answer within the timeout (a credential prompt or the plugin did not respond): %w", ctx.Err())
+		return nil, fmt.Errorf("no answer within the timeout: most likely a macOS keychain dialog (\"aiquota wants to use your confidential information\") that nobody answered. One-time fix: run `aiquota status` in Terminal.app and click \"Always Allow\" (re-needed after each reinstall, the item's ACL pins the binary's cdhash): %w", ctx.Err())
 	}
 }
 

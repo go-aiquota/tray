@@ -127,3 +127,27 @@ func TestBadInputDoesNotBlock(t *testing.T) {
 		t.Errorf("code %d out %q: bad input must be a non-blocking error", code, o.String())
 	}
 }
+
+func TestUnknownStampAllowsOnlyAnUnmeasuredStatement(t *testing.T) {
+	p := put(t, stamp.Unknown, time.Minute)
+	if _, out := hook(t, "The weekly limit state is unknown, I could not measure it.", p); out != "" {
+		t.Errorf("a statement that says unknown was blocked: %q", out)
+	}
+	if _, out := hook(t, "Blocked until Nov 12 by the weekly limit.", p); !blocked(out) {
+		t.Errorf("an assertion on an UNKNOWN stamp was allowed: %q", out)
+	}
+	none := filepath.Join(t.TempDir(), "none.json")
+	if _, out := hook(t, "Weekly limit: not measured yet.", none); out != "" {
+		t.Errorf("hedged statement with no stamp was blocked: %q", out)
+	}
+}
+
+func TestStopHookActiveDoesNotLoop(t *testing.T) {
+	now = func() time.Time { return t0 }
+	in, _ := json.Marshal(map[string]any{"last_assistant_message": "weekly limit hit, blocked until Nov 12", "stop_hook_active": true})
+	var o, e bytes.Buffer
+	run([]string{"--stamp", filepath.Join(t.TempDir(), "none.json")}, bytes.NewReader(in), &o, &e)
+	if o.Len() != 0 {
+		t.Errorf("second pass must allow, got %q", o.String())
+	}
+}
