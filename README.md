@@ -45,6 +45,15 @@ or exhausted), 2 usage error. Each run writes a stamp to
 `os.UserConfigDir()/aiquota/last-status.json` (time, windows, verdicts; no
 credential).
 
+`-o statusbar` prints one JSON object `{version, text, tooltip, level,
+verdict}` for an editor status bar: `text` is `Claude 30% · 5%` (session ·
+weekly) or `Claude ?` when UNKNOWN (the reasons are in the tooltip, never a
+number), `level` is `ok`, `warn`, `error` or `unknown` (`--warn 75`,
+`--critical 90`, percent of the worst window; an exhausted window is always
+`error`). The tooltip lists every window with its reset and the measurement
+time. The [VS Code extension](https://github.com/go-aiquota/vscode-statusbar)
+shows it permanently and holds no logic of its own.
+
 `quotaclaim` is a Claude Code `Stop` / `SubagentStop` hook that refuses a
 reply asserting a usage-limit state ("weekly limit", "hit your limit",
 "resets Nov 12", "limite hebdomadaire", "bloqué jusqu'au", ...) unless a stamp

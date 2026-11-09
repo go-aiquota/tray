@@ -6,6 +6,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"path/filepath"
 	"strings"
@@ -207,6 +208,71 @@ func TestJSONOutputIsTheStamp(t *testing.T) {
 	_, out, _ := runStatus(t, f, "status", "-o", "json", "--account", "max")
 	if !strings.Contains(out, `"verdict": "available"`) {
 		t.Errorf("json: %s", out)
+	}
+}
+
+func statusbarOf(t *testing.T, f *fake, args ...string) (int, statusBar) {
+	t.Helper()
+	code, out, _ := runStatus(t, f, append([]string{"status", "-o", "statusbar"}, args...)...)
+	var sb statusBar
+	if err := json.Unmarshal([]byte(out), &sb); err != nil {
+		t.Fatalf("not one JSON object: %v\n%s", err, out)
+	}
+	return code, sb
+}
+
+func TestStatusbarShowsSessionAndWeeklyWithLevels(t *testing.T) {
+	reset := time.Date(2026, 11, 9, 13, 0, 0, 0, time.UTC).Unix()
+	for _, c := range []struct {
+		session, weekly, model float64
+		level                  string
+		code                   int
+	}{
+		{30, 5, 0, levelOK, 0},
+		{30, 5, 80, levelWarn, 0},
+		{92, 5, 0, levelError, 0},
+		{100, 5, 0, levelError, 1},
+	} {
+		f := one(nil)
+		f.ccErr = nil
+		f.cc = &quotapb.QuotaSnapshot{PlanKind: "team", Windows: []*quotapb.QuotaWindow{
+			win("Session (5hr)", c.session, reset), win("Weekly (7 day)", c.weekly, reset), win("Weekly Fable", c.model, reset)}}
+		code, sb := statusbarOf(t, f)
+		if code != c.code || sb.Level != c.level || !strings.HasPrefix(sb.Text, "Claude ") {
+			t.Errorf("%+v: code %d, %+v", c, code, sb)
+		}
+	}
+	f := one(nil)
+	f.ccErr = nil
+	f.cc = &quotapb.QuotaSnapshot{PlanKind: "team", Windows: []*quotapb.QuotaWindow{win("Session (5hr)", 30, t10.Add(3*time.Hour).Unix()), win("Weekly (7 day)", 5, t10.Add(72*time.Hour).Unix())}}
+	_, sb := statusbarOf(t, f)
+	if sb.Text != "Claude 30% · 5%" {
+		t.Errorf("text %q", sb.Text)
+	}
+	for _, want := range []string{"Claude Code (team)", "Session (5hr)  30%  resets at 13:00", "measured 2026-11-09 10:00:00 UTC"} {
+		if !strings.Contains(sb.Tooltip, want) {
+			t.Errorf("tooltip lacks %q:\n%s", want, sb.Tooltip)
+		}
+	}
+	if _, sb = statusbarOf(t, f, "--warn", "20", "--critical", "40"); sb.Level != levelWarn {
+		t.Errorf("custom thresholds: %+v", sb)
+	}
+}
+
+func TestStatusbarUnknownIsNeverANumber(t *testing.T) {
+	f := one(nil)
+	f.ccErr = errors.New("token expired")
+	code, sb := statusbarOf(t, f)
+	if code != 3 || sb.Text != "Claude ?" || sb.Level != levelUnknown || !strings.Contains(sb.Tooltip, "token expired") ||
+		!strings.Contains(sb.Tooltip, "measured 2026-11-09 10:00:00 UTC") || strings.ContainsAny(sb.Text, "0123456789") {
+		t.Errorf("code %d, %+v", code, sb)
+	}
+}
+
+func TestBadThresholdsAreUsageError(t *testing.T) {
+	newBackend = func() (backend, error) { return one(nil), nil }
+	if code := run([]string{"status", "-o", "statusbar", "--warn", "95", "--critical", "90"}, &bytes.Buffer{}, &bytes.Buffer{}); code != 2 {
+		t.Fatalf("code %d, want 2", code)
 	}
 }
 
