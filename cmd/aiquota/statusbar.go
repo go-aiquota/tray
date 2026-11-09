@@ -137,14 +137,14 @@ func buildStatusBar(st stamp.Stamp, warn, critical, bands int) statusBar {
 		if i < 2 {
 			parts = append(parts, fmt.Sprintf("%d%%", p))
 		}
-		if i < 2 || w.UsedPercent > 0 {
-			band, s := bandOf(w.UsedPercent, bands)
-			text := fmt.Sprintf("%s %d%%", shortLabel(w.Label), p)
-			if i == 0 {
-				text = "Claude " + text
-			}
-			sb.Items = append(sb.Items, barItem{ID: fmt.Sprintf("w%d", i), Text: text, Percent: p, Band: band, Color: s.Color, Background: s.Background})
+		// Every window the provider returns gets an item, 0 % included: a
+		// window that is not drawn reads as a window that does not exist.
+		band, s := bandOf(w.UsedPercent, bands)
+		text := fmt.Sprintf("%s %d%%", shortLabel(w.Label), p)
+		if i == 0 {
+			text = "Claude " + text
 		}
+		sb.Items = append(sb.Items, barItem{ID: fmt.Sprintf("w%d", i), Text: text, Percent: p, Band: band, Color: s.Color, Background: s.Background})
 	}
 	sb.Text = "Claude " + strings.Join(parts, " · ")
 	switch {

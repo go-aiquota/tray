@@ -118,12 +118,15 @@ func TestItemsPerWindow(t *testing.T) {
 		{Account: "Claude Code", Label: "Weekly Sonnet", Limit: 100, UsedPercent: 99.9, Verdict: stamp.Available, Plan: "team"},
 	}}
 	sb := buildStatusBar(st, 75, 90, 8)
-	if sb.Version != 2 || len(sb.Items) != 3 {
+	// A window at 0 % is drawn too: hiding it made the Fable window vanish
+	// from the bar whenever it was unused.
+	if sb.Version != 2 || len(sb.Items) != 4 {
 		t.Fatalf("%+v", sb)
 	}
 	want := []barItem{
 		{ID: "w0", Text: "Claude 5h 12%", Percent: 12, Band: 1, Color: "#5CF29A", Background: bgNone},
 		{ID: "w1", Text: "7d 80%", Percent: 80, Band: 6, Color: "#FFC9C2", Background: bgWarning},
+		{ID: "w2", Text: "Fable 0%", Percent: 0, Band: 0, Color: "#B9F6CA", Background: bgNone},
 		{ID: "w3", Text: "Sonnet 99%", Percent: 99, Band: 7, Color: "#FFD2CC", Background: bgError},
 	}
 	for i, w := range want {
