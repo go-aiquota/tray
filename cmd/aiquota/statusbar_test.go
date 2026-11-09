@@ -5,10 +5,14 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"math"
 	"strconv"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-aiquota/proto/quotapb"
 	"github.com/go-aiquota/tray/stamp"
@@ -118,18 +122,94 @@ func TestItemsPerWindow(t *testing.T) {
 		{Account: "Claude Code", Label: "Weekly Sonnet", Limit: 100, UsedPercent: 99.9, Verdict: stamp.Available, Plan: "team"},
 	}}
 	sb := buildStatusBar(st, 75, 90, 8)
-	if sb.Version != 2 || len(sb.Items) != 3 {
+	// A window at 0 % is drawn too: hiding it made the Fable window vanish
+	// from the bar whenever it was unused.
+	if sb.Version != 2 || len(sb.Items) != 4 {
 		t.Fatalf("%+v", sb)
 	}
 	want := []barItem{
 		{ID: "w0", Text: "Claude 5h 12%", Percent: 12, Band: 1, Color: "#5CF29A", Background: bgNone},
 		{ID: "w1", Text: "7d 80%", Percent: 80, Band: 6, Color: "#FFC9C2", Background: bgWarning},
+		{ID: "w2", Text: "Fable 0%", Percent: 0, Band: 0, Color: "#B9F6CA", Background: bgNone},
 		{ID: "w3", Text: "Sonnet 99%", Percent: 99, Band: 7, Color: "#FFD2CC", Background: bgError},
 	}
 	for i, w := range want {
 		if sb.Items[i] != w {
 			t.Errorf("item %d: %+v, want %+v", i, sb.Items[i], w)
 		}
+	}
+}
+
+// A window the provider lists without a value is drawn as a grey "–", says
+// why in the tooltip, and takes no part in the verdict.
+func TestNotAvailableWindowIsDashedAndNeverANumber(t *testing.T) {
+	f := one(nil)
+	f.ccErr = nil
+	f.cc = &quotapb.QuotaSnapshot{PlanKind: "team", Windows: []*quotapb.QuotaWindow{
+		win("Session (5hr)", 30, 0), win("Weekly (7 day)", 5, 0),
+		{Label: "Weekly Sonnet", Unit: unitNotAvailable},
+		{Label: "Weekly Opus", Unit: unitNotAvailable},
+	}}
+	code, out, st := runStatus(t, f, "status", "-o", "statusbar", "--format-version", "2")
+	if code != 0 || st.Verdict != stamp.Available {
+		t.Fatalf("n/a windows must not change the verdict: code %d %s", code, st.Verdict)
+	}
+	var sb statusBar
+	if err := json.Unmarshal([]byte(out), &sb); err != nil || len(sb.Items) != 4 {
+		t.Fatalf("%v %s", err, out)
+	}
+	for _, it := range sb.Items[2:] {
+		if it.Percent != 0 || it.Band != -1 || it.Color != unknownColor || it.Background != bgNone || !strings.HasSuffix(it.Text, " –") {
+			t.Errorf("n/a item: %+v", it)
+		}
+	}
+	if !strings.Contains(sb.Tooltip, "Weekly Sonnet  –  not available") || sb.Text != "Claude 30% · 5%" {
+		t.Errorf("%q / %q", sb.Text, sb.Tooltip)
+	}
+	_, text, _ := runStatus(t, f, "status")
+	if !strings.Contains(text, "Weekly Opus") || !strings.Contains(text, "not available   [N/A]") {
+		t.Errorf("text output:\n%s", text)
+	}
+}
+
+func TestOnlyNotAvailableWindowsMeanNothingWasMeasured(t *testing.T) {
+	if v := stamp.Overall([]stamp.Window{{Verdict: stamp.NotAvailable}, {Verdict: stamp.NotAvailable}}); v != stamp.Unknown {
+		t.Errorf("verdict %s, want unknown", v)
+	}
+	if v := stamp.Overall([]stamp.Window{{Verdict: stamp.NotAvailable}, {Verdict: stamp.Exhausted}}); v != stamp.Exhausted {
+		t.Errorf("verdict %s, want exhausted", v)
+	}
+}
+
+func TestOverlayFlagAsksForThePanelView(t *testing.T) {
+	claudeCodeView = ""
+	t.Cleanup(func() { claudeCodeView = "" })
+	runStatus(t, one(nil), "status", "--overlay", "--account", "max")
+	if claudeCodeView != "overlay" {
+		t.Errorf("view %q", claudeCodeView)
+	}
+}
+
+func TestRawPrintsTheProviderResponseAndOnlyWithJSON(t *testing.T) {
+	old := rawUsage
+	t.Cleanup(func() { rawUsage = old })
+	rawUsage = func(context.Context, string, time.Duration) ([]byte, error) {
+		return []byte("{\"five_hour\": null}\n"), nil
+	}
+	var o, e bytes.Buffer
+	if code := run([]string{"status", "-o", "json", "--raw"}, &o, &e); code != 0 || o.String() != "{\"five_hour\": null}\n" {
+		t.Errorf("code %d out %q err %q", code, o.String(), e.String())
+	}
+	if code := run([]string{"status", "--raw"}, &bytes.Buffer{}, &bytes.Buffer{}); code != 2 {
+		t.Errorf("--raw without -o json: code %d, want 2", code)
+	}
+	rawUsage = func(context.Context, string, time.Duration) ([]byte, error) {
+		return nil, errors.New("boom sk-ant-sid01-abcdefghijklmnopqrstuvwxyz0123456789")
+	}
+	o.Reset()
+	e.Reset()
+	if code := run([]string{"status", "-o", "json", "--raw"}, &o, &e); code != 3 || strings.Contains(e.String(), "abcdefghijklmnop") || o.Len() != 0 {
+		t.Errorf("failure: code %d out %q err %q", code, o.String(), e.String())
 	}
 }
 

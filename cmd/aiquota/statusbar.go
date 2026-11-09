@@ -130,6 +130,20 @@ func buildStatusBar(st stamp.Stamp, warn, critical, bands int) statusBar {
 	var parts []string
 	worst := 0
 	for i, w := range st.Windows {
+		// Every window the provider returns gets an item, 0 % included: a
+		// window that is not drawn reads as a window that does not exist. One
+		// listed without a value is a grey "–", never a number.
+		if w.Verdict == stamp.NotAvailable {
+			if i < 2 {
+				parts = append(parts, "–")
+			}
+			text := shortLabel(w.Label) + " –"
+			if i == 0 {
+				text = "Claude " + text
+			}
+			sb.Items = append(sb.Items, barItem{ID: fmt.Sprintf("w%d", i), Text: text, Band: -1, Color: unknownColor, Background: bgNone})
+			continue
+		}
 		p := panelPercent(w.UsedPercent)
 		if p > worst {
 			worst = p
@@ -137,14 +151,12 @@ func buildStatusBar(st stamp.Stamp, warn, critical, bands int) statusBar {
 		if i < 2 {
 			parts = append(parts, fmt.Sprintf("%d%%", p))
 		}
-		if i < 2 || w.UsedPercent > 0 {
-			band, s := bandOf(w.UsedPercent, bands)
-			text := fmt.Sprintf("%s %d%%", shortLabel(w.Label), p)
-			if i == 0 {
-				text = "Claude " + text
-			}
-			sb.Items = append(sb.Items, barItem{ID: fmt.Sprintf("w%d", i), Text: text, Percent: p, Band: band, Color: s.Color, Background: s.Background})
+		band, s := bandOf(w.UsedPercent, bands)
+		text := fmt.Sprintf("%s %d%%", shortLabel(w.Label), p)
+		if i == 0 {
+			text = "Claude " + text
 		}
+		sb.Items = append(sb.Items, barItem{ID: fmt.Sprintf("w%d", i), Text: text, Percent: p, Band: band, Color: s.Color, Background: s.Background})
 	}
 	sb.Text = "Claude " + strings.Join(parts, " · ")
 	switch {
@@ -165,6 +177,10 @@ func buildStatusBar(st stamp.Stamp, warn, critical, bands int) statusBar {
 				plan = "unknown"
 			}
 			fmt.Fprintf(&b, "%s (%s)\n", w.Account, plan)
+		}
+		if w.Verdict == stamp.NotAvailable {
+			fmt.Fprintf(&b, "%s  –  not available (the provider lists it without a value)\n", w.Label)
+			continue
 		}
 		fmt.Fprintf(&b, "%s  %d%%", w.Label, panelPercent(w.UsedPercent))
 		if w.ResetsAtUnix > 0 {
