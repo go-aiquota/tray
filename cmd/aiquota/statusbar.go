@@ -89,7 +89,7 @@ type statusBar struct {
 	Tooltip string    `json:"tooltip"`
 	Level   string    `json:"level"`
 	Verdict string    `json:"verdict"`
-	Items   []barItem `json:"items"`
+	Items   []barItem `json:"items,omitempty"`
 }
 
 // shortLabel is the compact name of a window for an item.
@@ -177,6 +177,13 @@ func buildStatusBar(st stamp.Stamp, warn, critical, bands int) statusBar {
 	return sb
 }
 
-func renderStatusBar(w io.Writer, st stamp.Stamp, warn, critical, bands int) error {
-	return json.NewEncoder(w).Encode(buildStatusBar(st, warn, critical, bands))
+// renderStatusBar prints the contract at the version the client asked for.
+// Version 1 is exactly what v0.3.0 printed (no items), so an older client
+// keeps working against a newer binary; version 2 adds the items.
+func renderStatusBar(w io.Writer, st stamp.Stamp, warn, critical, bands, version int) error {
+	sb := buildStatusBar(st, warn, critical, bands)
+	if version == 1 {
+		sb.Version, sb.Items = 1, nil
+	}
+	return json.NewEncoder(w).Encode(sb)
 }
