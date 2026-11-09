@@ -83,6 +83,28 @@ func TestContradictedClaimIsBlocked(t *testing.T) {
 	}
 }
 
+// The 2026-11-09 20:42 false positive: a limit placed in the past, after a
+// fresh AVAILABLE reading, is history, not a contradiction. It still needs
+// that reading (no stamp → blocked), and a present marker keeps it a claim.
+func TestPastLimitNeedsAFreshReadingNotAnExhaustedOne(t *testing.T) {
+	past := "They stopped earlier when they hit the 5-hour limit."
+	if _, out := hook(t, past, put(t, stamp.Available, time.Minute)); out != "" {
+		t.Errorf("past limit against a fresh available stamp blocked: %q", out)
+	}
+	if _, out := hook(t, past, filepath.Join(t.TempDir(), "none.json")); !blocked(out) {
+		t.Errorf("past limit with no stamp allowed: %q", out)
+	}
+	for _, msg := range []string{
+		"They hit the 5-hour limit earlier and are still blocked.",
+		"I hit the weekly limit earlier, so I can't continue until Nov 12.",
+		"Ils avaient atteint la limite de 5 h et sont encore bloqués.",
+	} {
+		if _, out := hook(t, msg, put(t, stamp.Available, time.Minute)); !blocked(out) {
+			t.Errorf("%q: present-tense claim allowed against an available stamp: %q", msg, out)
+		}
+	}
+}
+
 func TestUnknownStampBacksNothing(t *testing.T) {
 	p := put(t, stamp.Unknown, time.Minute)
 	if _, out := hook(t, "weekly limit resets Nov 12", p); out == "" {
