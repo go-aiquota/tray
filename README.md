@@ -80,6 +80,9 @@ your usage limit") are never claims; the table test holds 39 such negatives.
 only if its own sentence says "unknown" / "not measured"; a second Stop in the
 same turn (`stop_hook_active`) is never blocked, to avoid a loop.
 
+`aiquota status` keeps the plugin client's own log (handshake, mTLS, stdio)
+quiet at Warn; `--debug` shows it on stderr for diagnosis.
+
 **Same view as Claude Code.** By default `aiquota status` queries **Claude
 Code's own login** (plugin-claude's "Claude Code" source, `GET
 api.anthropic.com/api/oauth/usage` with the token Claude Code keeps in the
