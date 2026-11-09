@@ -5,10 +5,12 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"math"
 	"strconv"
 	"testing"
 
+	"github.com/go-aiquota/proto/quotapb"
 	"github.com/go-aiquota/tray/stamp"
 )
 
@@ -142,6 +144,31 @@ func runArgs(t *testing.T, args ...string) int {
 	t.Helper()
 	newBackend = func() (backend, error) { return one(nil), nil }
 	return run(args, &bytes.Buffer{}, &bytes.Buffer{})
+}
+
+// A client asks for the contract version it understands; the default is 1,
+// byte-for-byte the shape v0.3.0 printed, so the first extension release keeps
+// working against a newer binary.
+func TestFormatVersionOneIsTheOldShapeAndTwoAddsItems(t *testing.T) {
+	f := one(nil)
+	f.ccErr = nil
+	f.cc = &quotapb.QuotaSnapshot{PlanKind: "team", Windows: []*quotapb.QuotaWindow{win("Session (5hr)", 30, 0), win("Weekly (7 day)", 5, 0)}}
+	_, out, _ := runStatus(t, f, "status", "-o", "statusbar")
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(out), &raw); err != nil {
+		t.Fatal(err)
+	}
+	if len(raw) != 5 || raw["items"] != nil || string(raw["version"]) != "1" {
+		t.Errorf("default is not the v1 shape: %s", out)
+	}
+	_, out, _ = runStatus(t, f, "status", "-o", "statusbar", "--format-version", "2")
+	var sb statusBar
+	if err := json.Unmarshal([]byte(out), &sb); err != nil || sb.Version != 2 || len(sb.Items) != 2 {
+		t.Errorf("v2: %v %s", err, out)
+	}
+	if code := runArgs(t, "status", "-o", "statusbar", "--format-version", "3"); code != 2 {
+		t.Errorf("--format-version 3: code %d, want 2", code)
+	}
 }
 
 func TestBadBandsAreUsageError(t *testing.T) {

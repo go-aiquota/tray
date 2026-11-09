@@ -143,7 +143,7 @@ func statusCmd() *cobra.Command {
 	var (
 		acct, format, provider, stampPath string
 		debug                             bool
-		warn, critical, bands             int
+		warn, critical, bands, fver       int
 		timeout                           time.Duration
 	)
 	c := &cobra.Command{
@@ -159,6 +159,9 @@ for the quotaclaim hook, whatever the verdict.`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if format != "text" && format != "json" && format != "statusbar" {
 				return fmt.Errorf("-o: want text, json or statusbar, got %q", format)
+			}
+			if fver != 1 && fver != 2 {
+				return fmt.Errorf("--format-version: want 1 or 2, got %d", fver)
 			}
 			if bands < 2 || bands > len(palette) {
 				return fmt.Errorf("--bands: want 2 to %d, got %d", len(palette), bands)
@@ -188,7 +191,7 @@ for the quotaclaim hook, whatever the verdict.`,
 				fmt.Fprintf(cmd.ErrOrStderr(), "aiquota: cannot write stamp: %s\n", clean(err))
 			}
 			if format == "statusbar" {
-				err = renderStatusBar(cmd.OutOrStdout(), st, warn, critical, bands)
+				err = renderStatusBar(cmd.OutOrStdout(), st, warn, critical, bands, fver)
 			} else {
 				err = render(cmd.OutOrStdout(), st, format)
 			}
@@ -202,6 +205,7 @@ for the quotaclaim hook, whatever the verdict.`,
 	c.Flags().StringVarP(&format, "output", "o", "text", "output format: text, json, or statusbar (one JSON line: text, tooltip, level, for an editor status bar)")
 	c.Flags().IntVar(&warn, "warn", 75, "statusbar: percent from which the level is warn")
 	c.Flags().IntVar(&critical, "critical", 90, "statusbar: percent from which the level is error")
+	c.Flags().IntVar(&fver, "format-version", 1, "statusbar: contract version to print: 1 (text, tooltip, level) or 2 (adds per-window items); a client asks for the one it understands")
 	c.Flags().IntVar(&bands, "bands", 8, "statusbar: number of equal colour bands per window, 2 to 8 (8 = steps of 12.5%)")
 	c.Flags().StringVar(&provider, "provider", "claude", "provider plugin")
 	c.Flags().StringVar(&stampPath, "stamp", "", "stamp file (default os.UserConfigDir()/aiquota/last-status.json)")
