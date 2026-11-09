@@ -29,6 +29,10 @@ const (
 	Available Verdict = "available"
 	Exhausted Verdict = "exhausted"
 	Unknown   Verdict = "unknown"
+	// NotAvailable is a WINDOW's verdict only: the provider listed the window
+	// without a value (utilization null). It says nothing about the account
+	// and takes no part in Overall.
+	NotAvailable Verdict = "n/a"
 )
 
 // Version is the schema version written to every stamp.
@@ -64,14 +68,20 @@ func Overall(ws []Window) Verdict {
 		return Unknown
 	}
 	out := Available
+	measured := false
 	for _, w := range ws {
 		switch w.Verdict {
 		case Exhausted:
 			return Exhausted
 		case Available:
+			measured = true
+		case NotAvailable:
 		default:
 			out = Unknown
 		}
+	}
+	if !measured && out == Available {
+		return Unknown // every window was listed without a value: nothing was measured
 	}
 	return out
 }

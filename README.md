@@ -45,6 +45,15 @@ or exhausted), 2 usage error. Each run writes a stamp to
 `os.UserConfigDir()/aiquota/last-status.json` (time, windows, verdicts; no
 credential).
 
+By default `aiquota status` shows **every window the usage endpoint returns**,
+not only the rows of Claude Code's panel: known windows keep the panel's labels
+and order (Opus included), unknown ones get a label derived from their key, and
+`limits[]` entries are added without duplicating the top-level windows. A window
+the endpoint lists without a value is `–` (verdict `n/a`, never a number, and
+outside the overall verdict). `--overlay` reproduces the panel's rows exactly,
+for the equality check; `-o json --raw` prints the usage response as received
+(it holds no credential) so you can see everything Claude returns.
+
 `-o statusbar` prints one JSON object `{version, text, tooltip, level,
 verdict}` for an editor status bar: `text` is `Claude 30% · 5%` (session ·
 weekly) or `Claude ?` when UNKNOWN (the reasons are in the tooltip, never a

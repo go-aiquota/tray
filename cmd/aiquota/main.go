@@ -16,6 +16,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -83,9 +84,39 @@ func (b *realBackend) Close()                               { b.mgr.Close() }
 // storage at fetch time, so nothing secret passes through here at all.
 var claudeCodeAccount = account.Account{ID: "claude-code", Provider: "claude", Label: "Claude Code"}
 
+// claudeCodeView is "" (every window the endpoint returns) or "overlay" (the
+// panel's rows only); set by --overlay.
+var claudeCodeView string
+
+// unitNotAvailable is the unit a provider gives a window it lists without a
+// value (plugin-claude: utilization null).
+const unitNotAvailable = "n/a"
+
+// rawUsage runs the provider plugin's --raw-usage and returns what it prints.
+// A var so a test can supply it.
+var rawUsage = func(ctx context.Context, provider string, timeout time.Duration) ([]byte, error) {
+	path, err := locateBinary(provider)
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	var out, errb bytes.Buffer
+	cmd := exec.CommandContext(ctx, path, "--raw-usage")
+	cmd.Stdout, cmd.Stderr = &out, &errb
+	if err := cmd.Run(); err != nil {
+		return nil, fmt.Errorf("%s --raw-usage: %w: %s", path, err, strings.TrimSpace(errb.String()))
+	}
+	return out.Bytes(), nil
+}
+
 func (b *realBackend) Fetch(ctx context.Context, a account.Account) (*quotapb.QuotaSnapshot, error) {
 	if a.ID == claudeCodeAccount.ID {
-		return b.mgr.FetchQuota(ctx, a.Provider, a.Label, map[string]string{"source": "claude-code"})
+		cred := map[string]string{"source": "claude-code"}
+		if claudeCodeView != "" {
+			cred["view"] = claudeCodeView
+		}
+		return b.mgr.FetchQuota(ctx, a.Provider, a.Label, cred)
 	}
 	cred, err := b.store.Credential(a.ID)
 	if err != nil {
@@ -142,7 +173,7 @@ func RootCmd() *cobra.Command {
 func statusCmd() *cobra.Command {
 	var (
 		acct, format, provider, stampPath string
-		debug                             bool
+		debug, overlay, raw               bool
 		warn, critical, bands, fver, rver int
 		timeout                           time.Duration
 	)
@@ -174,6 +205,21 @@ for the quotaclaim hook, whatever the verdict.`,
 			}
 			if debug {
 				quota.PluginLogLevel = hclog.Debug
+			}
+			if raw {
+				if format != "json" {
+					return errors.New("--raw: only with -o json")
+				}
+				b, err := rawUsage(cmd.Context(), provider, timeout)
+				if err != nil {
+					fmt.Fprintf(cmd.ErrOrStderr(), "aiquota: %s\n", clean(err))
+					return codeError{code: exitUnknown}
+				}
+				_, err = cmd.OutOrStdout().Write(b)
+				return err
+			}
+			if overlay {
+				claudeCodeView = "overlay"
 			}
 			be, err := newBackend()
 			var st stamp.Stamp
@@ -211,6 +257,8 @@ for the quotaclaim hook, whatever the verdict.`,
 	c.Flags().IntVar(&rver, "render", 0, "statusbar: print the generic render description (1) the VS Code extension draws as it is: items with text, tooltip, colour, background, priority offset, alignment and click action; 0 keeps --format-version")
 	c.Flags().IntVar(&fver, "format-version", 1, "statusbar: contract version to print: 1 (text, tooltip, level) or 2 (adds per-window items); a client asks for the one it understands")
 	c.Flags().IntVar(&bands, "bands", 8, "statusbar: number of equal colour bands per window, 2 to 8 (8 = steps of 12.5%)")
+	c.Flags().BoolVar(&overlay, "overlay", false, "show exactly the rows of Claude Code's Account & usage panel (hides Opus, null windows and limits without a model), for the equality check; the default shows every window the endpoint returns")
+	c.Flags().BoolVar(&raw, "raw", false, "with -o json: print the provider's usage response as received (no credential in it) instead of the stamp, to see everything Claude returns")
 	c.Flags().StringVar(&provider, "provider", "claude", "provider plugin")
 	c.Flags().StringVar(&stampPath, "stamp", "", "stamp file (default os.UserConfigDir()/aiquota/last-status.json)")
 	c.Flags().BoolVar(&debug, "debug", false, "show the plugin client's DEBUG/TRACE log on stderr")
@@ -338,6 +386,9 @@ func fetchWithin(ctx context.Context, be backend, a account.Account) (*quotapb.Q
 func windowOf(acct string, w *quotapb.QuotaWindow) stamp.Window {
 	out := stamp.Window{Account: acct, Label: w.Label, Used: w.Used, Limit: w.Limit, ResetsAtUnix: w.ResetsAtUnix}
 	switch {
+	case w.Unit == unitNotAvailable:
+		out.Verdict = stamp.NotAvailable
+		out.Note = "the provider lists this window without a value (utilization is null)"
 	case w.Limit <= 0:
 		out.Verdict = stamp.Unknown
 		out.Note = "provider gave no limit"
@@ -408,6 +459,8 @@ func render(w io.Writer, st stamp.Stamp, format string) error {
 			if x.ResetsAtUnix > 0 {
 				line += "   Resets " + panelReset(x.ResetsAtUnix, x.Label, now())
 			}
+		} else if x.Verdict == stamp.NotAvailable {
+			line += "   –   not available"
 		} else {
 			line += "   ?"
 		}
