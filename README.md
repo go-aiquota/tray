@@ -71,13 +71,30 @@ your usage limit") are never claims; the table test holds 39 such negatives.
 only if its own sentence says "unknown" / "not measured"; a second Stop in the
 same turn (`stop_hook_active`) is never blocked, to avoid a loop.
 
-**First live read (macOS).** The credential is a login-keychain item
-(`go-aiquota:claude`) whose ACL trusts binaries by cdhash. A newly installed
-`aiquota` is not on that list, so its first read raises a keychain dialog that
-a headless session cannot answer (`aiquota status` then reports UNKNOWN after
-`--timeout`). One-time step, per installed version: run `aiquota status` in
-Terminal.app and click **Always Allow** (login password). No secret is copied
-anywhere.
+**Same view as Claude Code.** By default `aiquota status` queries **Claude
+Code's own login** (plugin-claude's "Claude Code" source, `GET
+api.anthropic.com/api/oauth/usage` with the token Claude Code keeps in the
+Keychain item `Claude Code-credentials`): the same account, plan, windows and
+percentages as the VS Code extension's *Account & usage* panel, printed with
+the panel's labels, order and wording so the two compare line by line:
+
+```
+Account: Claude Code
+Plan: max
+Session (5hr)     37%   Resets at 14:00   [AVAILABLE]
+Weekly (7 day)    52%   Resets Thu, Nov 12 at 03:00   [AVAILABLE]
+Weekly Sonnet      8%   Resets Thu, Nov 12 at 03:00   [AVAILABLE]
+```
+
+Rows the panel hides (null windows) are not printed. Accounts onboarded
+through the claude.ai cookie flow are the fallback, used only when no Claude
+Code login exists or when named with `--account`. The token is never
+refreshed (Claude Code renews its own login): once expired the status is
+UNKNOWN, `token expired, open Claude Code`. The read goes through
+`/usr/bin/security`, which the item's ACL already trusts, so there is no
+keychain dialog and nothing to re-approve after a reinstall. A stored
+claude.ai account's keychain item is different: its ACL pins each binary by
+cdhash and a first read prompts once ("Always Allow").
 
 Why it exists: a session once told a user "blocked until Nov 12" from a dead
 subagent's error message, after the user had changed plan. A limit is a
