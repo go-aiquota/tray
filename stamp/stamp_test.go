@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -49,7 +50,7 @@ func TestRoundTripAndMode(t *testing.T) {
 	if err != nil || got.Verdict != Exhausted || !got.At.Equal(at) || got.Version != Version {
 		t.Fatalf("got %+v err %v", got, err)
 	}
-	if fi, _ := os.Stat(p); fi.Mode().Perm() != 0o600 {
+	if fi, _ := os.Stat(p); runtime.GOOS != "windows" && fi.Mode().Perm() != 0o600 {
 		t.Errorf("mode %v", fi.Mode())
 	}
 	if got.Age(at.Add(-time.Hour)) != 0 || got.Age(at.Add(time.Minute)) != time.Minute {
