@@ -120,6 +120,13 @@ var proseInHarness = regexp.MustCompile(`(?i)\b(so|because|blocked|bloqu\w*|unti
 // negatedFR is the French order: "n'est pas la limite hebdomadaire".
 var negatedFR = regexp.MustCompile(`(?i)(n'est pas|\bpas)\b[^.\n]{0,20}limite (hebdomadaire|d'usage|de 5 ?h)`)
 
+// pastMarker places a limit in the past ("earlier", "before the reset");
+// presentMarker keeps it a claim about now ("still", "until", "can't").
+var (
+	pastMarker    = regexp.MustCompile(`(?i)\b(earlier|previously|before (the|it|they) reset|had (hit|reached)|this (afternoon|morning)|plus tôt|précédemment|avant (la|sa) réinitialisation|avai(en)?t (atteint|dépassé))\b`)
+	presentMarker = regexp.MustCompile(`(?i)\b(still|now|until|till|again|blocked|cannot|can'?t|encore|toujours|maintenant|jusqu\w*|bloqu\w*)\b`)
+)
+
 func classifySentence(s string) (class, string) {
 	if negated.MatchString(s) || negatedFR.MatchString(s) {
 		return classNone, ""
@@ -130,6 +137,11 @@ func classifySentence(s string) (class, string) {
 	if h, ok := firstMatch(exhaustedRes, s); ok {
 		if (strings.HasPrefix(strings.ToLower(h), "blocked") || strings.HasPrefix(strings.ToLower(h), "bloqu")) && !blockedContext.MatchString(s) {
 			// "blocked until the PR merges": not a usage claim.
+		} else if pastMarker.MatchString(s) && !presentMarker.MatchString(s) {
+			// "They stopped earlier when they hit the 5-hour limit": a past
+			// event, not today's state. Still a claim about the limit, so it
+			// needs a fresh measurement, but one saying AVAILABLE backs it.
+			return classGeneral, h
 		} else {
 			return classExhausted, h
 		}
