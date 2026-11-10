@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 )
 
@@ -112,7 +113,11 @@ func Lock(path string, wait time.Duration) (func(), error) {
 			_ = f.Close()
 			return func() { _ = os.Remove(lock) }, nil
 		}
-		if !errors.Is(err, os.ErrExist) {
+		// On Windows a lock file its holder has just removed stays "delete
+		// pending" for a moment, and creating it then fails with access denied
+		// rather than "exists": that is contention too.
+		contended := errors.Is(err, os.ErrExist) || (runtime.GOOS == "windows" && errors.Is(err, os.ErrPermission))
+		if !contended {
 			return nil, err
 		}
 		if fi, serr := os.Stat(lock); serr == nil && time.Since(fi.ModTime()) > lockStale {
