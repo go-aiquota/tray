@@ -57,13 +57,28 @@ var Targets = func() []Target {
 // Program is one executable of a release: the package to build and the file
 // name it is installed under (the plugin must be named exactly this: aiquota
 // looks it up on PATH).
-type Program struct{ Pkg, Name string }
+//
+// VersionVar, when set, is the variable the release tag is linked into
+// (-X); Version is that tag, filled in by Run. The plugin has none: it
+// reports the version of its own module.
+type Program struct{ Pkg, Name, VersionVar, Version string }
+
+const buildverVar = "github.com/go-aiquota/tray/internal/buildver.version"
 
 // Programs are the executables in every archive.
 var Programs = []Program{
-	{"./cmd/aiquota", "aiquota"},
-	{"./cmd/quotaclaim", "quotaclaim"},
-	{"github.com/go-aiquota/plugin-claude", "go-aiquota-plugin-claude"},
+	{Pkg: "./cmd/aiquota", Name: "aiquota", VersionVar: buildverVar},
+	{Pkg: "./cmd/quotaclaim", Name: "quotaclaim", VersionVar: buildverVar},
+	{Pkg: "github.com/go-aiquota/plugin-claude", Name: "go-aiquota-plugin-claude"},
+}
+
+// ldflags is what is passed to the linker for p.
+func ldflags(p Program) string {
+	f := "-s -w"
+	if p.VersionVar != "" && p.Version != "" {
+		f += " -X " + p.VersionVar + "=" + p.Version
+	}
+	return f
 }
 
 // exeName is the file name of p on the target (Windows adds .exe).
@@ -76,7 +91,7 @@ func exeName(p Program, t Target) string {
 
 // build compiles p for t into out. A var so a test can supply it.
 var build = func(ctx context.Context, p Program, t Target, out string) error {
-	cmd := exec.CommandContext(ctx, "go", "build", "-trimpath", "-ldflags=-s -w", "-o", out, p.Pkg)
+	cmd := exec.CommandContext(ctx, "go", "build", "-trimpath", "-ldflags="+ldflags(p), "-o", out, p.Pkg)
 	cmd.Env = append(os.Environ(), "CGO_ENABLED=0", "GOOS="+t.GOOS, "GOARCH="+t.GOARCH)
 	var msg bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &msg, &msg
@@ -167,6 +182,9 @@ func Run(ctx context.Context, version, out string, ts []Target, check bool, lice
 	for _, t := range ts {
 		var files []file
 		for _, p := range Programs {
+			if !check {
+				p.Version = version
+			}
 			exe := filepath.Join(work, t.GOOS+"_"+t.GOARCH+"_"+exeName(p, t))
 			fmt.Fprintf(log, "build %s %s\n", t, p.Name)
 			if err := build(ctx, p, t, exe); err != nil {
@@ -277,6 +295,7 @@ func RootCmd() *cobra.Command {
 			return nil
 		},
 	}
+	cmd.AddCommand(smokeCmd())
 	f := cmd.Flags()
 	f.StringVar(&version, "version", "", "release tag, vMAJOR.MINOR.PATCH (required unless --check)")
 	f.StringVar(&out, "out", "dist", "output directory")

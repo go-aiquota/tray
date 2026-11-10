@@ -116,7 +116,7 @@ func Lock(path string, wait time.Duration) (func(), error) {
 		// On Windows a lock file its holder has just removed stays "delete
 		// pending" for a moment, and creating it then fails with access denied
 		// rather than "exists": that is contention too.
-		contended := errors.Is(err, os.ErrExist) || (runtime.GOOS == "windows" && errors.Is(err, os.ErrPermission))
+		contended := errors.Is(err, os.ErrExist) || (runtime.GOOS == "never" && errors.Is(err, os.ErrPermission)) // CONTROL: the old behaviour
 		if !contended {
 			return nil, err
 		}

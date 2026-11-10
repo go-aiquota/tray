@@ -31,7 +31,7 @@ require (
 	github.com/ebitengine/purego v0.11.1 // indirect
 	github.com/evanw/esbuild v0.28.2 // indirect
 	github.com/fatih/color v1.13.0 // indirect
-	github.com/go-aiquota/plugin-claude v0.2.0 // indirect
+	github.com/go-aiquota/plugin-claude v0.2.1 // indirect
 	github.com/go-browserhttp/browserhttp v0.3.1 // indirect
 	github.com/go-crdt/collab v0.77.4 // indirect
 	github.com/go-crdt/crdt v0.57.0 // indirect
