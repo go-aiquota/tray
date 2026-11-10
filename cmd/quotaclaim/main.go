@@ -30,6 +30,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/go-aiquota/tray/internal/buildver"
 	"github.com/go-aiquota/tray/stamp"
 )
 
@@ -155,6 +156,7 @@ func RootCmd(in io.Reader) *cobra.Command {
 	var maxAge time.Duration
 	c := &cobra.Command{
 		Use:           "quotaclaim",
+		Version:       buildver.Version(),
 		Short:         "Stop hook: refuse an unmeasured claim about Claude's own usage limits",
 		Args:          cobra.NoArgs,
 		SilenceUsage:  true,
@@ -185,6 +187,7 @@ func RootCmd(in io.Reader) *cobra.Command {
 	}
 	c.Flags().StringVar(&stampPath, "stamp", "", "stamp file (default os.UserConfigDir()/aiquota/last-status.json)")
 	c.Flags().DurationVar(&maxAge, "max-age", 10*time.Minute, "how old a measurement may be")
+	c.SetVersionTemplate("quotaclaim {{.Version}}\n")
 	c.AddCommand(scanCmd())
 	return c
 }

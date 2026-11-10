@@ -37,6 +37,7 @@ import (
 	"github.com/go-aiquota/proto/quotapb"
 	"github.com/go-aiquota/proto/redact"
 	"github.com/go-aiquota/tray/account"
+	"github.com/go-aiquota/tray/internal/buildver"
 	"github.com/go-aiquota/tray/quota"
 	"github.com/go-aiquota/tray/stamp"
 )
@@ -171,6 +172,9 @@ func run(args []string, out, errw io.Writer) int {
 	case errors.As(err, &ce):
 		return ce.code
 	default:
+		// SilenceErrors keeps cobra from printing: an error that exits 2 with
+		// no word at all (a relative $XDG_CONFIG_HOME was one) cannot be fixed.
+		fmt.Fprintf(errw, "aiquota: %s\n", clean(err))
 		return exitUsage
 	}
 }
@@ -179,10 +183,12 @@ func run(args []string, out, errw io.Writer) int {
 func RootCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:           "aiquota",
+		Version:       buildver.Version(),
 		Short:         "Measure AI usage limits live",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
+	root.SetVersionTemplate("aiquota {{.Version}}\n")
 	root.AddCommand(statusCmd())
 	return root
 }

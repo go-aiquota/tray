@@ -66,3 +66,48 @@ jobs:
         with:
           go-version: '1.27.3'
       - run: go run ./internal/reldist --check --out dist
+
+  # The release archives, run: the same `reldist smoke` the release workflow
+  # runs before it publishes, here on a throwaway version (v0.0.0) for the
+  # archive of each runner's own platform, so a break shows in the pull request.
+  smoke:
+    name: smoke ${{ matrix.goos }}/${{ matrix.goarch }}
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { goos: linux,   goarch: amd64, ext: tar.gz, runner: ubuntu-latest }
+          - { goos: linux,   goarch: arm64, ext: tar.gz, runner: ubuntu-24.04-arm }
+          - { goos: darwin,  goarch: arm64, ext: tar.gz, runner: macos-latest }
+          - { goos: windows, goarch: amd64, ext: zip,    runner: windows-latest }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.27.3'
+      - run: go run ./internal/reldist --version v0.0.0 --out dist --only ${{ matrix.goos }}/${{ matrix.goarch }}
+      - run: mkdir smoke
+      - run: go run ./internal/reldist smoke --archive dist/aiquota_v0.0.0_${{ matrix.goos }}_${{ matrix.goarch }}.${{ matrix.ext }} --sums dist/SHA256SUMS --version v0.0.0 --dest smoke
+
+  # The shared-reading lock, repeated: on Windows a lock file its holder has
+  # just removed is "delete pending" and creating it fails with access denied,
+  # which one run of this test hit only some of the time. 200 runs on the
+  # Windows runner make the race show; gotest fails when the selection ran nothing.
+  lock-stress:
+    name: lock stress (windows, -count=200)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.27.3'
+      - run: go run github.com/go-fleettools/fleettools/cmd/gotest@latest -count=200 -run '^TestConcurrentCallersShareOneFetch$' ./cmd/aiquota
+        env:
+          CGO_ENABLED: '0'

@@ -2,16 +2,21 @@ name: release
 
 # Prebuilt binaries for a release, so that somebody can install aiquota without
 # a Go toolchain: one archive per platform (aiquota, quotaclaim and the Claude
-# provider plugin go-aiquota-plugin-claude, which aiquota starts from PATH) and
+# provider plugin go-aiquota-plugin-claude, which aiquota starts) and
 # SHA256SUMS, built by internal/reldist (a Go program with a test; this file
-# only invokes it) and added to the release when it is published.
+# only invokes it).
 #
-# Windows, Linux and macOS are tested by CI on a runner of their own; FreeBSD,
-# OpenBSD and NetBSD are cross-built (CI does it on every pull request) but run
-# nowhere before a user does.
+# Nothing is added to the release that was not RUN first: each archive a user
+# is likely to download is checked against SHA256SUMS and started on its own
+# kind of runner (linux amd64 and arm64, macOS arm64, Windows amd64) under a
+# minimal PATH, by `reldist smoke`: --version of all three programs, and
+# `aiquota status`, which must find the plugin beside itself. The other
+# archives (macOS amd64, Windows arm64, and FreeBSD, OpenBSD and NetBSD, for
+# which GitHub has no runner) are cross-built, never run here.
 #
 # Also by hand for a tag that is already released:
 #   gh workflow run release.yml -R go-aiquota/tray -f tag=v0.8.0
+# (publish=false builds and runs everything and adds nothing to the release.)
 
 on:
   release:
@@ -21,6 +26,10 @@ on:
       tag:
         description: the release tag to build and publish binaries for
         required: true
+      publish:
+        description: add the files to the release (false = build and run them only)
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -34,10 +43,10 @@ env:
   TAG: ${{ inputs.tag || github.event.release.tag_name }}
 
 jobs:
-  binaries:
+  build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write      # add the files to the release
+      contents: read
       id-token: write      # the attestation's Sigstore certificate
       attestations: write  # recording it
     steps:
@@ -56,6 +65,54 @@ jobs:
             dist/*.tar.gz
             dist/*.zip
             dist/SHA256SUMS
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist
+          if-no-files-found: error
+          retention-days: 7
+
+  # Each archive started on its own kind of system. Read-only.
+  smoke:
+    needs: build
+    name: run ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: linux_amd64,   ext: tar.gz, runner: ubuntu-latest }
+          - { target: linux_arm64,   ext: tar.gz, runner: ubuntu-24.04-arm }
+          - { target: darwin_arm64,  ext: tar.gz, runner: macos-latest }
+          - { target: windows_amd64, ext: zip,    runner: windows-latest }
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
+          persist-credentials: false
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: false
+      - uses: actions/download-artifact@v8
+        with: { name: dist, path: dist }
+      - run: mkdir smoke
+      - run: go run ./internal/reldist smoke --archive "dist/aiquota_${TAG}_${{ matrix.target }}.${{ matrix.ext }}" --sums dist/SHA256SUMS --version "$TAG" --dest smoke
+
+  publish:
+    needs: [build, smoke]
+    if: ${{ github.event_name == 'release' || inputs.publish }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write      # add the files to the release
+    steps:
+      - uses: actions/download-artifact@v8
+        with: { name: dist, path: dist }
       - name: Add to the release
         env:
           GH_TOKEN: ${{ github.token }}
