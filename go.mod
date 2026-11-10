@@ -1,9 +1,9 @@
 module github.com/go-aiquota/tray
 
-go 1.27.2
+go 1.27.3
 
 require (
-	github.com/go-aiquota/proto v0.0.0-20261010212053-7827b32e00aa
+	github.com/go-aiquota/proto v0.0.0-20261101015222-ed7100b4df3c
 	github.com/go-appdirs/outdir v0.3.0
 	github.com/go-keyring/keyring v0.4.0
 	github.com/go-macos/objc v0.11.2
@@ -23,7 +23,7 @@ require (
 
 require (
 	github.com/andybalholm/brotli v1.2.6 // indirect
-	github.com/breml/rootcerts v0.3.7 // indirect
+	github.com/breml/rootcerts v0.3.8 // indirect
 	github.com/coder/websocket v1.8.15 // indirect
 	github.com/danieljoos/wincred v1.2.3 // indirect
 	github.com/dlclark/regexp2/v2 v2.5.2 // indirect
@@ -31,7 +31,8 @@ require (
 	github.com/ebitengine/purego v0.11.1 // indirect
 	github.com/evanw/esbuild v0.28.2 // indirect
 	github.com/fatih/color v1.13.0 // indirect
-	github.com/go-browserhttp/browserhttp v0.2.0 // indirect
+	github.com/go-aiquota/plugin-claude v0.2.0 // indirect
+	github.com/go-browserhttp/browserhttp v0.3.1 // indirect
 	github.com/go-crdt/collab v0.77.4 // indirect
 	github.com/go-crdt/crdt v0.57.0 // indirect
 	github.com/go-freedesktop/secretservice v0.1.0 // indirect
@@ -64,7 +65,7 @@ require (
 	github.com/grpc-transports/websocket v0.4.0 // indirect
 	github.com/hashicorp/yamux v0.1.2 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/klauspost/compress v1.18.7 // indirect
+	github.com/klauspost/compress v1.20.2 // indirect
 	github.com/mattn/go-colorable v0.1.12 // indirect
 	github.com/mattn/go-isatty v0.0.17 // indirect
 	github.com/oklog/run v1.1.0 // indirect
@@ -82,3 +83,5 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260904194346-d0f1323225a4 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 )
+
+tool github.com/go-aiquota/plugin-claude

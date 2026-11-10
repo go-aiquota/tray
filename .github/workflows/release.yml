@@ -1,0 +1,62 @@
+name: release
+
+# Prebuilt binaries for a release, so that somebody can install aiquota without
+# a Go toolchain: one archive per platform (aiquota, quotaclaim and the Claude
+# provider plugin go-aiquota-plugin-claude, which aiquota starts from PATH) and
+# SHA256SUMS, built by internal/reldist (a Go program with a test; this file
+# only invokes it) and added to the release when it is published.
+#
+# Windows, Linux and macOS are tested by CI on a runner of their own; FreeBSD,
+# OpenBSD and NetBSD are cross-built (CI does it on every pull request) but run
+# nowhere before a user does.
+#
+# Also by hand for a tag that is already released:
+#   gh workflow run release.yml -R go-aiquota/tray -f tag=v0.8.0
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: the release tag to build and publish binaries for
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.tag || github.event.release.tag_name }}
+  cancel-in-progress: false
+
+env:
+  # Data, never interpolated into a script.
+  TAG: ${{ inputs.tag || github.event.release.tag_name }}
+
+jobs:
+  binaries:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write      # add the files to the release
+      id-token: write      # the attestation's Sigstore certificate
+      attestations: write  # recording it
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
+          persist-credentials: false
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: false
+      - run: go run ./internal/reldist --version "$TAG" --out dist
+      - uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/SHA256SUMS
+      - name: Add to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber dist/*.tar.gz dist/*.zip dist/SHA256SUMS
