@@ -32,10 +32,33 @@ Early. Building bottom-up:
 
 ## Command line: `aiquota` and the `quotaclaim` gate
 
+**Install without Go.** Each [release](https://github.com/go-aiquota/tray/releases)
+carries one archive per platform, `aiquota_<tag>_<os>_<arch>.tar.gz` (`.zip` on
+Windows), and a `SHA256SUMS` file. An archive holds `aiquota`, `quotaclaim` and
+`go-aiquota-plugin-claude` (the Claude provider, which `aiquota` starts and
+looks up on `PATH` under exactly that name) and the licence: put the three
+programs in one directory that is on your `PATH`. Check the download against
+`SHA256SUMS` first (`shasum -a 256 -c --ignore-missing SHA256SUMS` on macOS and
+Linux, `Get-FileHash` on Windows). Operating systems: Linux, macOS, Windows,
+FreeBSD, OpenBSD and NetBSD, each for amd64 and arm64. CI builds all twelve on
+every pull request, but only Linux, macOS and Windows are *tested* on a runner;
+the three BSDs are built and never run by CI. The binaries are static
+(`CGO_ENABLED=0`), built by `go run ./internal/reldist`, and carry a GitHub
+provenance attestation (`gh attestation verify <archive> --repo go-aiquota/tray`).
+macOS may quarantine a downloaded binary: see the
+[extension's install guide](https://github.com/go-aiquota/vscode-statusbar#install).
+
+**Install with Go** (the provider plugin is a separate module):
+
 ```sh
 GOBIN=~/.local/bin go install github.com/go-aiquota/tray/cmd/aiquota@latest
 GOBIN=~/.local/bin go install github.com/go-aiquota/tray/cmd/quotaclaim@latest
+GOBIN=~/.local/bin go install github.com/go-aiquota/plugin-claude@latest
+mv ~/.local/bin/plugin-claude ~/.local/bin/go-aiquota-plugin-claude
 ```
+
+`go install` names the plugin after its module, so it is renamed to the name
+`aiquota` looks for (the prebuilt archives already use it).
 
 `aiquota status [--account A] [-o json|text]` loads the Claude plugin, asks
 LIVE for every window (5 h session, weekly, per-model) and prints used %,
@@ -75,7 +98,7 @@ number), `level` is `ok`, `warn`, `error` or `unknown` (`--warn 75`,
 time. A client asks for the contract it understands with `--format-version`: 1 (the
 default, exactly the object above) or 2 (v0.5.0; since v0.4.0 as the only
 format), which also carries `items`, one per window (session,
-weekly, and a per-model window when above zero), each with `text`, `percent`,
+weekly, and every other window the endpoint returns, a 0 % one included), each with `text`, `percent`,
 `band` (0 to 7, equal steps of 12.5 %; `--bands N`, 2 to 8, for coarser steps;
 -1 when unknown), `color` (hex) and `background` (`none`, `warning`, `error`).
 The 8 steps are light green, dark green, light yellow, dark yellow, light

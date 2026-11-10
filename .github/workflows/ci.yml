@@ -52,3 +52,17 @@ jobs:
         with:
           go-version: '1.27.3'
       - run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+
+  # Every platform a release carries binaries for, built on every pull request
+  # so a break shows before the tag. Windows, Linux and macOS are also TESTED
+  # above, on a runner of their own; FreeBSD, OpenBSD and NetBSD are only
+  # cross-built (GitHub has no runner for them): the build is the whole check.
+  cross:
+    name: cross-build (6 OSes x amd64, arm64)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.27.3'
+      - run: go run ./internal/reldist --check --out dist
