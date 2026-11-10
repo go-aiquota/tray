@@ -172,6 +172,9 @@ func run(args []string, out, errw io.Writer) int {
 	case errors.As(err, &ce):
 		return ce.code
 	default:
+		// SilenceErrors keeps cobra from printing: an error that exits 2 with
+		// no word at all (a relative $XDG_CONFIG_HOME was one) cannot be fixed.
+		fmt.Fprintf(errw, "aiquota: %s\n", clean(err))
 		return exitUsage
 	}
 }

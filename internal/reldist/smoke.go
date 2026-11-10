@@ -181,6 +181,12 @@ func minimalEnv(empty string) []string {
 // provider plugin beside itself: with no Claude Code login the answer is
 // UNKNOWN, but never "no go-aiquota-plugin-claude".
 func Smoke(ctx context.Context, archive, sums, version, dest string, log io.Writer) error {
+	// Absolute: the environment given to the programs names directories under
+	// dest, and a relative $XDG_CONFIG_HOME is refused by os.UserConfigDir.
+	dest, err := filepath.Abs(dest)
+	if err != nil {
+		return err
+	}
 	if err := verifySum(archive, sums); err != nil {
 		return err
 	}
