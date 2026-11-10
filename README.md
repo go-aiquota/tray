@@ -36,8 +36,9 @@ Early. Building bottom-up:
 carries one archive per platform, `aiquota_<tag>_<os>_<arch>.tar.gz` (`.zip` on
 Windows), and a `SHA256SUMS` file. An archive holds `aiquota`, `quotaclaim` and
 `go-aiquota-plugin-claude` (the Claude provider, which `aiquota` starts and
-looks up on `PATH` under exactly that name) and the licence: put the three
-programs in one directory that is on your `PATH`. Check the download against
+looks up under exactly that name, on `PATH` first and then in its own
+directory since v0.8.1) and the licence: put the programs in one directory,
+ideally one that is on your `PATH`. Check the download against
 `SHA256SUMS` first (`shasum -a 256 -c --ignore-missing SHA256SUMS` on macOS and
 Linux, `Get-FileHash` on Windows). Operating systems: Linux, macOS, Windows,
 FreeBSD, OpenBSD and NetBSD, each for amd64 and arm64. CI builds all twelve on

@@ -126,12 +126,28 @@ func (b *realBackend) Fetch(ctx context.Context, a account.Account) (*quotapb.Qu
 	return b.mgr.FetchQuota(ctx, a.Provider, a.Label, cred)
 }
 
+// executable is the path of this program; a var so a test can supply it.
+var executable = os.Executable
+
+// locateBinary finds the provider's plugin on PATH, else in the directory of
+// this program (symlinks resolved): a release archive unpacked into a folder
+// that is not on PATH, which is the usual state of ~/.local/bin on macOS, works
+// when `aiquota` is called by its full path.
 func locateBinary(provider string) (string, error) {
-	p, err := exec.LookPath(quota.BinaryPrefix + provider)
-	if err != nil {
-		return "", fmt.Errorf("no %s%s on PATH: %w", quota.BinaryPrefix, provider, err)
+	name := quota.BinaryPrefix + provider
+	p, err := exec.LookPath(name)
+	if err == nil {
+		return p, nil
 	}
-	return p, nil
+	if exe, xerr := executable(); xerr == nil {
+		if resolved, rerr := filepath.EvalSymlinks(exe); rerr == nil {
+			exe = resolved
+		}
+		if beside, berr := exec.LookPath(filepath.Join(filepath.Dir(exe), name)); berr == nil {
+			return beside, nil
+		}
+	}
+	return "", fmt.Errorf("no %s on PATH or next to aiquota: %w", name, err)
 }
 
 // codeError carries an exit status out of RunE without printing anything.
