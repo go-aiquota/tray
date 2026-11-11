@@ -102,6 +102,8 @@ format), which also carries `items`, one per window (session,
 weekly, and every other window the endpoint returns, a 0 % one included), each with `text`, `percent`,
 `band` (0 to 7, equal steps of 12.5 %; `--bands N`, 2 to 8, for coarser steps;
 -1 when unknown), `color` (hex) and `background` (`none`, `warning`, `error`).
+A window at 100 % (or exhausted) carries its reset timestamp in its text,
+`7d 100% → 2026-11-13 03:00` (v0.9.0; local, 24 h, always with the date).
 The 8 steps are light green, dark green, light yellow, dark yellow, light
 orange, dark orange, then the theme's warning and error backgrounds: VS Code's
 extension API honours only those two backgrounds, so every other step is a

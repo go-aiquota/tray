@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/go-aiquota/tray/stamp"
 )
@@ -104,6 +105,17 @@ func shortLabel(label string) string {
 	return strings.TrimSpace(strings.TrimPrefix(label, "Weekly"))
 }
 
+// barReset is the reset timestamp of a full window, always with its date
+// ("2026-11-13 03:00", local, 24 h): a time alone is ambiguous the moment the
+// reset is not today. The clock time, not a countdown (the menu bar's #6).
+func barReset(unix int64, at time.Time) string {
+	t := time.Unix(unix, 0).Local()
+	if !t.After(at) {
+		return "soon"
+	}
+	return t.Format("2006-01-02 15:04")
+}
+
 // buildStatusBar derives the status bar from a stamp. An UNKNOWN verdict is
 // one grey "Claude ?" item with the reasons in the tooltip, never a number.
 // The level is the worst window against warn and critical (percent); an
@@ -153,6 +165,11 @@ func buildStatusBar(st stamp.Stamp, warn, critical, bands int) statusBar {
 		}
 		band, s := bandOf(w.UsedPercent, bands)
 		text := fmt.Sprintf("%s %d%%", shortLabel(w.Label), p)
+		if (p >= 100 || w.Verdict == stamp.Exhausted) && w.ResetsAtUnix > 0 {
+			// A full window says when it comes back: that is the only thing
+			// the reader can act on, and the tooltip needs a hover.
+			text += " → " + barReset(w.ResetsAtUnix, now())
+		}
 		if i == 0 {
 			text = "Claude " + text
 		}

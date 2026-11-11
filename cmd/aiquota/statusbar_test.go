@@ -140,6 +140,39 @@ func TestItemsPerWindow(t *testing.T) {
 	}
 }
 
+// A full window carries its reset time in the item itself; one below 100 %
+// does not, and neither does a full window with no reset time.
+func TestFullWindowShowsItsResetTime(t *testing.T) {
+	old := now
+	t.Cleanup(func() { now = old })
+	at := time.Date(2026, 11, 11, 9, 30, 0, 0, time.Local)
+	now = func() time.Time { return at }
+	st := stamp.Stamp{Version: stamp.Version, At: at, Verdict: stamp.Exhausted, Windows: []stamp.Window{
+		{Account: "Claude Code", Label: "Session (5hr)", UsedPercent: 100, Verdict: stamp.Exhausted, ResetsAtUnix: at.Add(4*time.Hour + 50*time.Minute).Unix()},
+		{Account: "Claude Code", Label: "Weekly (7 day)", UsedPercent: 100, Verdict: stamp.Exhausted, ResetsAtUnix: time.Date(2026, 11, 13, 3, 0, 0, 0, time.Local).Unix()},
+		{Account: "Claude Code", Label: "Weekly Fable", UsedPercent: 99.9, Verdict: stamp.Available, ResetsAtUnix: at.Add(time.Hour).Unix()},
+		{Account: "Claude Code", Label: "Weekly Sonnet", UsedPercent: 100, Verdict: stamp.Exhausted},
+	}}
+	sb := buildStatusBar(st, 75, 90, 8)
+	for i, want := range []string{"Claude 5h 100% → 2026-11-11 14:20", "7d 100% → 2026-11-13 03:00", "Fable 99%", "Sonnet 100%"} {
+		if sb.Items[i].Text != want {
+			t.Errorf("item %d: %q, want %q", i, sb.Items[i].Text, want)
+		}
+	}
+	for _, c := range []struct {
+		reset time.Time
+		want  string
+	}{
+		{at.Add(-time.Minute), "soon"},
+		{time.Date(2026, 11, 11, 23, 59, 0, 0, time.Local), "2026-11-11 23:59"},
+		{time.Date(2027, 1, 2, 0, 1, 0, 0, time.Local), "2027-01-02 00:01"},
+	} {
+		if got := barReset(c.reset.Unix(), at); got != c.want {
+			t.Errorf("barReset(%s) = %q, want %q", c.reset, got, c.want)
+		}
+	}
+}
+
 // A window the provider lists without a value is drawn as a grey "–", says
 // why in the tooltip, and takes no part in the verdict.
 func TestNotAvailableWindowIsDashedAndNeverANumber(t *testing.T) {
