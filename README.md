@@ -47,7 +47,8 @@ the three BSDs are built and never run by CI. The binaries are static
 (`CGO_ENABLED=0`), built by `go run ./internal/reldist`, and carry a GitHub
 provenance attestation (`gh attestation verify <archive> --repo go-aiquota/tray`).
 macOS may quarantine a downloaded binary: see the
-[extension's install guide](https://github.com/go-aiquota/vscode-statusbar#install).
+[install guide](https://go-aiquota.github.io/docs/main/install/) (also in the
+[extension's README](https://github.com/go-aiquota/vscode-statusbar#install)).
 
 **Install with Go** (the provider plugin is a separate module):
 
