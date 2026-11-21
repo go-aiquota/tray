@@ -41,15 +41,15 @@ func (g GateState) offFor(account string, now time.Time) bool {
 }
 
 // paths are the three files the gate uses.
-type paths struct{ stamp, gate, waiver string }
+type paths struct{ stamp, gate, waiver, history, refresh string }
 
 // resolvePaths returns the flag values, with the defaults under
 // os.UserConfigDir()/aiquota for those not given. When that directory cannot
 // be resolved the error says so and the unresolved paths stay empty: the hook
 // then reads nothing (and allows), a command refuses.
-func resolvePaths(stampFlag, gateFlag, waiverFlag string) (paths, error) {
-	p := paths{stampFlag, gateFlag, waiverFlag}
-	needDefault := p.stamp == "" || p.gate == "" || p.waiver == ""
+func resolvePaths(stampFlag, gateFlag, waiverFlag, historyFlag, refreshFlag string) (paths, error) {
+	p := paths{stampFlag, gateFlag, waiverFlag, historyFlag, refreshFlag}
+	needDefault := p.stamp == "" || p.gate == "" || p.waiver == "" || p.history == "" || p.refresh == ""
 	dir, err := os.UserConfigDir()
 	if err != nil && needDefault {
 		return p, err
@@ -62,6 +62,12 @@ func resolvePaths(stampFlag, gateFlag, waiverFlag string) (paths, error) {
 	}
 	if p.waiver == "" {
 		p.waiver = filepath.Join(dir, "aiquota", "pace-waivers.log")
+	}
+	if p.history == "" {
+		p.history = filepath.Join(dir, "aiquota", "pace-history.json")
+	}
+	if p.refresh == "" {
+		p.refresh = filepath.Join(dir, "aiquota", "pace-refresh.json")
 	}
 	return p, nil
 }
