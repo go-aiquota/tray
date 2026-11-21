@@ -31,15 +31,11 @@ type GateState struct {
 	Accounts map[string]Switch `json:"accounts,omitempty"`
 }
 
-// offFor says whether the gate is off for account ("" = no account asked).
-func (g GateState) offFor(account string, now time.Time) (Switch, bool) {
-	if g.Global.active(now) {
-		return g.Global, true
-	}
-	if s, ok := g.Accounts[account]; ok && account != "" && s.active(now) {
-		return s, true
-	}
-	return Switch{}, false
+// offFor says whether the gate is off for account by its own switch (the
+// global one is judged first by the caller).
+func (g GateState) offFor(account string, now time.Time) bool {
+	s, ok := g.Accounts[account]
+	return ok && account != "" && s.active(now)
 }
 
 // defaultGatePath is os.UserConfigDir()/aiquota/pace-gate.json.

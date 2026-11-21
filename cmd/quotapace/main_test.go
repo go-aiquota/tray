@@ -350,3 +350,46 @@ func TestVersionFlag(t *testing.T) {
 		t.Fatalf("version: %q", out)
 	}
 }
+
+func TestStampExactlyMaxAgeIsStillRead(t *testing.T) {
+	e := newEnv(t)
+	writeStamp(t, filepath.Join(e.dir, "stamp.json"), t0.Add(-15*time.Minute), over)
+	denied(t, e.hook(t, spawn("implementer", "sonnet", "x"))) // age == --max-age: still fresh
+}
+
+func TestSwitchErrors(t *testing.T) {
+	e := newEnv(t)
+	e.stamp(t, over)
+	if _, _, code := e.run(t, "", "pace", "off", "--for", "-1h"); code == 0 {
+		t.Error("a negative --for must be refused")
+	}
+	if out, _, _ := e.run(t, "", "pace", "status"); out != "gate: on\n" {
+		t.Errorf("a refused off must leave the gate on: %q", out)
+	}
+	if err := os.WriteFile(filepath.Join(e.dir, "gate.json"), []byte("{broken"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"pace"}, {"pace", "status"}, {"pace", "off"}, {"pace", "on"}, {"pace", "off", "--account", "A"}} {
+		if _, _, code := e.run(t, "", args...); code == 0 {
+			t.Errorf("%v on a broken switch file must fail", args)
+		}
+	}
+	// A switch file that cannot be written (its directory is a file).
+	blocker := filepath.Join(e.dir, "blocker")
+	if err := os.WriteFile(blocker, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var out, errw bytes.Buffer
+	if code := run([]string{"pace", "off", "--gate", filepath.Join(blocker, "g.json")}, strings.NewReader(""), &out, &errw); code == 0 {
+		t.Error("an unwritable switch file must fail")
+	}
+}
+
+func TestIndefiniteOffIsReported(t *testing.T) {
+	e := newEnv(t)
+	e.stamp(t, over)
+	e.run(t, "", "pace", "off")
+	if out := e.hook(t, "", "pace"); !strings.Contains(out, "gate: off until `pace on`") {
+		t.Fatalf("report: %s", out)
+	}
+}

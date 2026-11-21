@@ -134,7 +134,7 @@ func (o *opts) denyReason(ev hookInput, at time.Time) string {
 			continue
 		}
 		measured++
-		if _, off := g.offFor(a.Account, at); off {
+		if g.offFor(a.Account, at) {
 			return "" // this account has headroom by the owner's decision
 		}
 		var bad []string
