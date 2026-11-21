@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -495,10 +496,10 @@ func TestSwitchFileErrorStages(t *testing.T) {
 	if err := os.WriteFile(blocker, nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, errw, code := runWith("", "pace", "off", "--gate", filepath.Join(blocker, "g.json")); code == 0 || !strings.Contains(errw, "reading") {
-		t.Errorf("a file as the directory: code=%d err=%q", code, errw)
+	if _, errw, code := runWith("", "pace", "off", "--gate", filepath.Join(blocker, "g.json")); code == 0 || !(strings.Contains(errw, "reading") || strings.Contains(errw, "creating")) {
+		t.Errorf("a file as the directory: code=%d err=%q", code, errw) // the stage differs by OS
 	}
-	if os.Geteuid() != 0 {
+	if os.Geteuid() != 0 && runtime.GOOS != "windows" { // a 0500 directory does not block on Windows
 		locked := filepath.Join(e.dir, "locked")
 		if err := os.Mkdir(locked, 0o500); err != nil {
 			t.Fatal(err)
