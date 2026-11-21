@@ -322,6 +322,9 @@ func TestReportTextShowsGateOffAndKeepsMeasuring(t *testing.T) {
 			t.Errorf("report lacks %q:\n%s", want, out)
 		}
 	}
+	if strings.Contains(out, "`pace on`") {
+		t.Errorf("a timed off must show its expiry, not `pace on`:\n%s", out)
+	}
 	if _, _, code := newEnv(t).run(t, "", "pace"); code == 0 {
 		t.Error("a report with no stamp is an error")
 	}
