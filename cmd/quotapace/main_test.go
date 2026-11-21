@@ -52,7 +52,13 @@ func newEnv(t *testing.T) env {
 	old := now
 	now = func() time.Time { return t0 }
 	t.Cleanup(func() { now = old })
-	return env{dir: t.TempDir()}
+	dir := t.TempDir()
+	// Whatever a test (or a mutant of the code under test) resolves by default
+	// lands in the temp dir, never in the owner's real config directory.
+	t.Setenv("HOME", dir)
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	t.Setenv("AppData", dir)
+	return env{dir: dir}
 }
 
 func (e env) flags() []string {
