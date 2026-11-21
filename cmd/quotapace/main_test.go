@@ -396,3 +396,112 @@ func TestIndefiniteOffIsReported(t *testing.T) {
 		t.Fatalf("report: %s", out)
 	}
 }
+
+// runWith runs with exactly these args (no default flags) and returns
+// stdout, stderr and the exit code.
+func runWith(stdin string, args ...string) (string, string, int) {
+	var out, errw bytes.Buffer
+	code := run(args, strings.NewReader(stdin), &out, &errw)
+	return out.String(), errw.String(), code
+}
+
+func noConfigDir(t *testing.T) {
+	t.Helper()
+	for _, k := range []string{"HOME", "XDG_CONFIG_HOME", "AppData"} {
+		t.Setenv(k, "")
+	}
+}
+
+func TestUnresolvedConfigDir(t *testing.T) {
+	e := newEnv(t)
+	e.stamp(t, over)
+	noConfigDir(t)
+	if _, errw, code := runWith("", "pace", "status"); code == 0 {
+		t.Error("a command with no resolvable config dir must refuse")
+	} else if !strings.Contains(errw, "HOME") && !strings.Contains(errw, "AppData") {
+		t.Errorf("the refusal must say why: %q", errw)
+	}
+	// The hook has nothing to read, so it allows.
+	if out, _, _ := runWith(spawn("implementer", "sonnet", "x")); out != "" {
+		t.Errorf("no readable files must allow, got %q", out)
+	}
+	// With the stamp and the switches given but no log: still judged, the waiver
+	// passes and its log failure is said on stderr.
+	args := []string{"--stamp", filepath.Join(e.dir, "stamp.json"), "--gate", filepath.Join(e.dir, "gate.json")}
+	denied(t, func() string { o, _, _ := runWith(spawn("implementer", "sonnet", "x"), args...); return o }())
+	out, errw, code := runWith(spawn("implementer", "sonnet", "pace-waiver: because"), args...)
+	if out != "" || code != 0 || !strings.Contains(errw, "waiver not logged") {
+		t.Errorf("waiver without a log path: out=%q code=%d err=%q", out, code, errw)
+	}
+}
+
+func TestWaiverLogFailuresAreSaidAndNeverRefuse(t *testing.T) {
+	e := newEnv(t)
+	e.stamp(t, over)
+	blocker := filepath.Join(e.dir, "blocker")
+	if err := os.WriteFile(blocker, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	readonly := filepath.Join(e.dir, "ro.log")
+	if err := os.WriteFile(readonly, nil, 0o400); err != nil {
+		t.Fatal(err)
+	}
+	base := []string{"--stamp", filepath.Join(e.dir, "stamp.json"), "--gate", filepath.Join(e.dir, "gate.json")}
+	for _, c := range []struct{ log, stage string }{{filepath.Join(blocker, "w.log"), "creating"}, {readonly, "opening"}} {
+		if c.stage == "opening" && os.Geteuid() == 0 {
+			continue // root opens a read-only file
+		}
+		out, errw, code := runWith(spawn("implementer", "sonnet", "pace-waiver: r"), append(base, "--waiver-log", c.log)...)
+		if out != "" || code != 0 || !strings.Contains(errw, "waiver not logged") || !strings.Contains(errw, c.stage) {
+			t.Errorf("%s: out=%q code=%d err=%q", c.stage, out, code, errw)
+		}
+	}
+	good := filepath.Join(e.dir, "sub", "ok.log")
+	if out, errw, _ := runWith(spawn("implementer", "sonnet", "pace-waiver: r"), append(base, "--waiver-log", good)...); out != "" || errw != "" {
+		t.Errorf("a logged waiver says nothing: out=%q err=%q", out, errw)
+	}
+}
+
+func TestSwitchFileErrorStages(t *testing.T) {
+	e := newEnv(t)
+	e.stamp(t, over)
+	gate := filepath.Join(e.dir, "gate.json")
+	if err := os.Mkdir(gate, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if _, errw, code := e.run(t, "", "pace", "status"); code == 0 || !strings.Contains(errw, "reading") {
+		t.Errorf("a directory as the switch file: code=%d err=%q", code, errw)
+	}
+	if err := os.Remove(gate); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(gate, []byte("{broken"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, errw, code := e.run(t, "", "pace", "status"); code == 0 || !strings.Contains(errw, "parsing") {
+		t.Errorf("a broken switch file: code=%d err=%q", code, errw)
+	}
+	blocker := filepath.Join(e.dir, "blocker")
+	if err := os.WriteFile(blocker, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, errw, code := runWith("", "pace", "off", "--gate", filepath.Join(blocker, "g.json")); code == 0 || !strings.Contains(errw, "reading") {
+		t.Errorf("a file as the directory: code=%d err=%q", code, errw)
+	}
+	if os.Geteuid() != 0 {
+		locked := filepath.Join(e.dir, "locked")
+		if err := os.Mkdir(locked, 0o500); err != nil {
+			t.Fatal(err)
+		}
+		if _, errw, code := runWith("", "pace", "off", "--gate", filepath.Join(locked, "sub", "g.json")); code == 0 || !strings.Contains(errw, "creating") {
+			t.Errorf("an unwritable directory: code=%d err=%q", code, errw)
+		}
+		ro := filepath.Join(e.dir, "ro.json")
+		if err := os.WriteFile(ro, []byte("{}"), 0o400); err != nil {
+			t.Fatal(err)
+		}
+		if _, errw, code := runWith("", "pace", "off", "--gate", ro); code == 0 || !strings.Contains(errw, "opening") {
+			t.Errorf("a read-only switch file: code=%d err=%q", code, errw)
+		}
+	}
+}

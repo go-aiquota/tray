@@ -58,19 +58,11 @@ func gateReport(s Switch, at time.Time) GateReport {
 }
 
 func (o *opts) report(at time.Time) (Report, error) {
-	sp, err := o.stamp()
+	st, err := stamp.Read(o.p.stamp)
 	if err != nil {
 		return Report{}, err
 	}
-	st, err := stamp.Read(sp)
-	if err != nil {
-		return Report{}, err
-	}
-	gp, err := o.gate()
-	if err != nil {
-		return Report{}, err
-	}
-	g, err := readGate(gp)
+	g, err := readGate(o.p.gate)
 	if err != nil {
 		return Report{}, err
 	}
@@ -140,6 +132,12 @@ func paceCmd(o *opts) *cobra.Command {
 		Use:   "pace",
 		Short: "Report the pace of every account's 5h and weekly window (--json for the stable schema)",
 		Args:  cobra.NoArgs,
+		// Every pace command needs its files: a default that cannot be resolved
+		// (no user config directory) is refused here, once, before anything runs.
+		PersistentPreRunE: func(*cobra.Command, []string) error {
+			o.resolve()
+			return o.pathErr
+		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			r, err := o.report(now())
 			if err != nil {
@@ -161,10 +159,6 @@ func paceCmd(o *opts) *cobra.Command {
 		Short: "Switch the gate off (globally, or for --account); --for 2h re-enables it by itself",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			gp, err := o.gate()
-			if err != nil {
-				return err
-			}
 			var until time.Time
 			if forDur < 0 {
 				return fmt.Errorf("--for must be positive")
@@ -172,10 +166,7 @@ func paceCmd(o *opts) *cobra.Command {
 			if forDur > 0 {
 				until = now().Add(forDur)
 			}
-			if err := setSwitch(gp, o.account, true, until); err != nil {
-				return err
-			}
-			return printStatus(cmd.OutOrStdout(), gp, now())
+			return o.flip(cmd.OutOrStdout(), true, until)
 		},
 	}
 	off.Flags().DurationVar(&forDur, "for", 0, "switch off for this long, then enforce again (default: until `pace on`)")
@@ -184,14 +175,7 @@ func paceCmd(o *opts) *cobra.Command {
 		Short: "Switch the gate back on (globally, or for --account)",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			gp, err := o.gate()
-			if err != nil {
-				return err
-			}
-			if err := setSwitch(gp, o.account, false, time.Time{}); err != nil {
-				return err
-			}
-			return printStatus(cmd.OutOrStdout(), gp, now())
+			return o.flip(cmd.OutOrStdout(), false, time.Time{})
 		},
 	}
 	status := &cobra.Command{
@@ -199,15 +183,20 @@ func paceCmd(o *opts) *cobra.Command {
 		Short: "Show the switches",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			gp, err := o.gate()
-			if err != nil {
-				return err
-			}
-			return printStatus(cmd.OutOrStdout(), gp, now())
+			return printStatus(cmd.OutOrStdout(), o.p.gate, now())
 		},
 	}
 	c.AddCommand(off, on, status)
 	return c
+}
+
+// flip switches the gate off or on for o.account ("" = global), then shows
+// the switches.
+func (o *opts) flip(w io.Writer, off bool, until time.Time) error {
+	if err := setSwitch(o.p.gate, o.account, off, until); err != nil {
+		return err
+	}
+	return printStatus(w, o.p.gate, now())
 }
 
 func printStatus(w io.Writer, gatePath string, at time.Time) error {

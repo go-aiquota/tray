@@ -30,7 +30,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -59,31 +58,15 @@ type opts struct {
 	stampPath, gatePath, account, waiverLog string
 	maxAge                                  time.Duration
 	tolerance, minElapsed                   float64
+
+	p       paths     // resolved by resolve
+	pathErr error     // why a default path could not be resolved
+	warn    io.Writer // where a non-fatal problem is said (stderr)
 }
 
-func (o *opts) stamp() (string, error) {
-	if o.stampPath != "" {
-		return o.stampPath, nil
-	}
-	return stamp.DefaultPath()
-}
-
-func (o *opts) gate() (string, error) {
-	if o.gatePath != "" {
-		return o.gatePath, nil
-	}
-	return defaultGatePath()
-}
-
-func (o *opts) waivers() (string, error) {
-	if o.waiverLog != "" {
-		return o.waiverLog, nil
-	}
-	dir, err := os.UserConfigDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(dir, "aiquota", "pace-waivers.log"), nil
+// resolve fills o.p from the flags and the defaults.
+func (o *opts) resolve() {
+	o.p, o.pathErr = resolvePaths(o.stampPath, o.gatePath, o.waiverLog)
 }
 
 // waiverReason returns the reason of the first `pace-waiver: <reason>` line.
@@ -111,19 +94,12 @@ func (o *opts) denyReason(ev hookInput, at time.Time) string {
 	if ev.cheap() {
 		return ""
 	}
-	gp, err := o.gate()
-	if err != nil {
-		return ""
-	}
-	g, err := readGate(gp)
+	o.resolve() // an unresolved path stays empty: nothing is read below, so the hook allows
+	g, err := readGate(o.p.gate)
 	if err != nil || g.Global.active(at) {
 		return ""
 	}
-	sp, err := o.stamp()
-	if err != nil {
-		return ""
-	}
-	st, err := stamp.Read(sp)
+	st, err := stamp.Read(o.p.stamp)
 	if err != nil || st.Age(at) > o.maxAge || (st.Verdict != stamp.Available && st.Verdict != stamp.Exhausted) {
 		return ""
 	}
@@ -176,20 +152,14 @@ func explain(w Pace, at time.Time) string {
 }
 
 func (o *opts) logWaiver(reason string, at time.Time) {
-	p, err := o.waivers()
-	if err != nil {
-		return
+	err := o.pathErr // the waiver path is unresolved exactly when this is set and no flag gave it
+	if o.p.waiver != "" {
+		line, _ := json.Marshal(map[string]string{"at": at.UTC().Format(time.RFC3339), "reason": reason})
+		err = writeFileIn(o.p.waiver, append(line, '\n'), os.O_APPEND|os.O_CREATE|os.O_WRONLY)
 	}
-	if os.MkdirAll(filepath.Dir(p), 0o700) != nil {
-		return
+	if err != nil { // the waiver still passes: the gate never refuses over its own log
+		fmt.Fprintln(o.warn, "quotapace: waiver not logged:", err)
 	}
-	f, err := os.OpenFile(p, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
-	if err != nil {
-		return
-	}
-	defer f.Close()
-	line, _ := json.Marshal(map[string]string{"at": at.UTC().Format(time.RFC3339), "reason": reason})
-	_, _ = f.Write(append(line, '\n'))
 }
 
 func main() { osExit(run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr)) }
@@ -221,6 +191,7 @@ func RootCmd(in io.Reader) *cobra.Command {
 			if err := json.NewDecoder(in).Decode(&ev); err != nil {
 				return fmt.Errorf("reading hook JSON: %w", err)
 			}
+			o.warn = cmd.ErrOrStderr()
 			reason := o.denyReason(ev, now())
 			if reason == "" {
 				return nil

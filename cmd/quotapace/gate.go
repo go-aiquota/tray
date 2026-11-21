@@ -10,6 +10,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/go-aiquota/tray/stamp"
 )
 
 // Switch is one off-switch: off, optionally until a moment (zero = until
@@ -38,13 +40,32 @@ func (g GateState) offFor(account string, now time.Time) bool {
 	return ok && account != "" && s.active(now)
 }
 
-// defaultGatePath is os.UserConfigDir()/aiquota/pace-gate.json.
-func defaultGatePath() (string, error) {
+// paths are the three files the gate uses.
+type paths struct{ stamp, gate, waiver string }
+
+// resolvePaths returns the flag values, with the defaults under
+// os.UserConfigDir()/aiquota for those not given. When that directory cannot
+// be resolved the error says so and the unresolved paths stay empty: the hook
+// then reads nothing (and allows), a command refuses.
+func resolvePaths(stampFlag, gateFlag, waiverFlag string) (paths, error) {
+	p := paths{stampFlag, gateFlag, waiverFlag}
+	if p.stamp != "" && p.gate != "" && p.waiver != "" {
+		return p, nil
+	}
 	dir, err := os.UserConfigDir()
 	if err != nil {
-		return "", err
+		return p, err
 	}
-	return filepath.Join(dir, "aiquota", "pace-gate.json"), nil
+	if p.stamp == "" {
+		p.stamp, _ = stamp.DefaultPath() // cannot fail once UserConfigDir answered
+	}
+	if p.gate == "" {
+		p.gate = filepath.Join(dir, "aiquota", "pace-gate.json")
+	}
+	if p.waiver == "" {
+		p.waiver = filepath.Join(dir, "aiquota", "pace-waivers.log")
+	}
+	return p, nil
 }
 
 // readGate loads the switch file; a missing file is "everything on". An
@@ -55,63 +76,53 @@ func readGate(path string) (GateState, error) {
 		return GateState{}, nil
 	}
 	if err != nil {
-		return GateState{}, err
+		return GateState{}, fmt.Errorf("reading %s: %w", path, err)
 	}
 	var g GateState
 	if err := json.Unmarshal(data, &g); err != nil {
-		return GateState{}, fmt.Errorf("%s: %w", path, err)
+		return GateState{}, fmt.Errorf("parsing %s: %w", path, err)
 	}
 	return g, nil
 }
 
-// writeGate stores g atomically (temp file + rename), 0600 in a 0700 dir.
-func writeGate(path string, g GateState) error {
-	data, err := json.MarshalIndent(g, "", "  ")
-	if err != nil {
-		return err
-	}
+// writeFileIn creates path's directory (0700) and writes data to it with the
+// given open flags (0600). Each stage's error names the stage.
+func writeFileIn(path string, data []byte, flag int) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return err
+		return fmt.Errorf("creating %s: %w", dir, err)
 	}
-	f, err := os.CreateTemp(dir, ".pace-gate-*")
+	f, err := os.OpenFile(path, flag, 0o600)
 	if err != nil {
-		return err
+		return fmt.Errorf("opening %s: %w", path, err)
 	}
-	tmp := f.Name()
-	if _, err := f.Write(append(data, '\n')); err != nil {
-		_ = f.Close()
-		_ = os.Remove(tmp)
-		return err
-	}
-	if err := f.Close(); err != nil {
-		_ = os.Remove(tmp)
-		return err
-	}
-	return os.Rename(tmp, path)
+	_, werr := f.Write(data)
+	return errors.Join(werr, f.Close())
 }
 
 // setSwitch turns the gate off (until = zero for no expiry) or on for account
-// ("" = global) and persists it.
+// ("" = global) and persists it. A hook reading a half-written file fails to
+// parse it and allows, which is the safe side.
 func setSwitch(path, account string, off bool, until time.Time) error {
 	g, err := readGate(path)
 	if err != nil {
 		return err
 	}
-	if account == "" {
-		g.Global = Switch{Off: off, Until: until}
-		if !off {
-			g.Global = Switch{}
-		}
-	} else if off {
+	switch {
+	case account == "" && off:
+		g.Global = Switch{Off: true, Until: until}
+	case account == "":
+		g.Global = Switch{}
+	case off:
 		if g.Accounts == nil {
 			g.Accounts = map[string]Switch{}
 		}
 		g.Accounts[account] = Switch{Off: true, Until: until}
-	} else {
+	default:
 		delete(g.Accounts, account)
 	}
-	return writeGate(path, g)
+	data, _ := json.MarshalIndent(g, "", "  ") // a fixed struct of strings, bools and times cannot fail to encode
+	return writeFileIn(path, append(data, '\n'), os.O_WRONLY|os.O_CREATE|os.O_TRUNC)
 }
 
 // describe is the one-line status of a switch at now.
