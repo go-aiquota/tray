@@ -55,6 +55,7 @@ macOS may quarantine a downloaded binary: see the
 ```sh
 GOBIN=~/.local/bin go install github.com/go-aiquota/tray/cmd/aiquota@latest
 GOBIN=~/.local/bin go install github.com/go-aiquota/tray/cmd/quotaclaim@latest
+GOBIN=~/.local/bin go install github.com/go-aiquota/tray/cmd/quotapace@latest
 GOBIN=~/.local/bin go install github.com/go-aiquota/plugin-claude@latest
 mv ~/.local/bin/plugin-claude ~/.local/bin/go-aiquota-plugin-claude
 ```
@@ -147,6 +148,53 @@ your usage limit") are never claims; the table test holds 39 such negatives.
 (read-only). With no usable measurement (none, stale, UNKNOWN) a claim passes
 only if its own sentence says "unknown" / "not measured"; a second Stop in the
 same turn (`stop_hook_active`) is never blocked, to avoid a loop.
+
+### `quotapace`: the quota pacing gate
+
+`quotapace` is a Claude Code `PreToolUse` hook on the `Agent` tool that spends
+each account's quota at the rate that empties it exactly at its reset, instead
+of hitting the wall days early. It reads the stamp `aiquota status` leaves (no
+network). Per account and per window (`5h`, `7d`) it computes the elapsed
+fraction of the window (from the reset time and the window's fixed length), the
+average rate since the window began (`used% / elapsed hours`), the sustainable
+rate (`remaining% / hours to reset`) and the projected use at the reset. It
+**refuses** the spawn (`permissionDecision: deny`, with those numbers and the
+projected exhaustion time) when the projection exceeds 100% by more than
+`--tolerance` (default 0.10) once `--min-elapsed` (default 5%) of the window has
+passed. It always allows: a `checker` agent or a `haiku` model; a prompt holding
+a line `pace-waiver: <reason>` (the reason is logged to
+`aiquota/pace-waivers.log`); no stamp, an unreadable one, or one older than
+`--max-age` (default 15 min), because a refusal is not a verdict when the gate
+cannot read. Keep the stamp fresh by running `aiquota status` periodically.
+With several accounts the gate refuses only when EVERY account is over pace (the
+fleet can spend on the one with headroom), or only the account named by
+`--account <label>`. Accounts are always labels, never an email or id.
+
+```json
+{"hooks": {"PreToolUse": [{"matcher": "Agent",
+  "hooks": [{"type": "command", "command": "~/.local/bin/quotapace"}]}]}}
+```
+
+Report, per account and aggregate (the mean of the accounts): `quotapace pace`,
+or `quotapace pace --json` for the stable document (`schema: 1`; fields are only
+added within a version): `at`, `stamp_at`, `stamp_age_seconds`, `stamp_fresh`,
+`gate {state, until}`, `accounts[] {account, gate, windows[]}` and `aggregate[]`,
+each window being `{window, used_percent, elapsed_percent, rate_per_hour,
+sustainable_per_hour, projected_at_reset_percent, projected_exhaustion (RFC 3339
+or null), resets_at, state (ok | over_pace | exhausted | too_early)}`.
+
+**Switch it off at will**, with no settings.json edit and no uninstall:
+
+```
+quotapace pace off [--for 2h] [--account <label>]   # --for re-enables itself on expiry
+quotapace pace on  [--account <label>]
+quotapace pace status
+```
+
+The switches live in `os.UserConfigDir()/aiquota/pace-gate.json`, global and per
+account. While off the hook allows everything and prints nothing, but `pace`
+keeps printing the numbers and shows `gate: off until ...`. An account that is
+off counts as having headroom. The deny message names these commands.
 
 `aiquota status` keeps the plugin client's own log (handshake, mTLS, stdio)
 quiet at Warn; `--debug` shows it on stderr for diagnosis.
