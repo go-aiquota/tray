@@ -100,10 +100,14 @@ func gateText(g GateReport) string {
 	if g.State == "on" {
 		return "on"
 	}
-	if g.Until == nil {
+	var u time.Time
+	if g.Until != nil {
+		u = *g.Until
+	}
+	if u.IsZero() {
 		return "off until `pace on`"
 	}
-	return "off until " + g.Until.Local().Format("2006-01-02 15:04 MST")
+	return "off until " + u.Local().Format("2006-01-02 15:04 MST")
 }
 
 func writeReport(w io.Writer, r Report) {
