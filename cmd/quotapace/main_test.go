@@ -890,6 +890,9 @@ func TestFindProgramDefaultsToAiquotaBesideOrOnPath(t *testing.T) {
 	}
 	beside := t.TempDir()
 	name := filepath.Join(beside, "aiquota")
+	if runtime.GOOS == "windows" {
+		name += ".exe" // an executable needs its extension to be found
+	}
 	if err := os.WriteFile(name, []byte("#!/bin/sh\n"), 0o700); err != nil {
 		t.Fatal(err)
 	}
