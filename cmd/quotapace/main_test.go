@@ -421,6 +421,10 @@ func TestUnresolvedConfigDir(t *testing.T) {
 	} else if !strings.Contains(errw, "HOME") && !strings.Contains(errw, "AppData") {
 		t.Errorf("the refusal must say why: %q", errw)
 	}
+	// Every file given by flag: no config dir is needed.
+	if _, errw, code := runWith("", append([]string{"pace", "status"}, e.flags()...)...); code != 0 {
+		t.Errorf("all paths given, yet refused: %q", errw)
+	}
 	// The hook has nothing to read, so it allows.
 	if out, _, _ := runWith(spawn("implementer", "sonnet", "x")); out != "" {
 		t.Errorf("no readable files must allow, got %q", out)

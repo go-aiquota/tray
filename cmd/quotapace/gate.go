@@ -49,11 +49,9 @@ type paths struct{ stamp, gate, waiver string }
 // then reads nothing (and allows), a command refuses.
 func resolvePaths(stampFlag, gateFlag, waiverFlag string) (paths, error) {
 	p := paths{stampFlag, gateFlag, waiverFlag}
-	if p.stamp != "" && p.gate != "" && p.waiver != "" {
-		return p, nil
-	}
+	needDefault := p.stamp == "" || p.gate == "" || p.waiver == ""
 	dir, err := os.UserConfigDir()
-	if err != nil {
+	if err != nil && needDefault {
 		return p, err
 	}
 	if p.stamp == "" {
