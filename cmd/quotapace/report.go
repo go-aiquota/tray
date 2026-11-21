@@ -17,7 +17,7 @@ import (
 
 // ReportSchema is the version of the `pace --json` document. Fields are only
 // ever added within a version.
-const ReportSchema = 1
+const ReportSchema = 2
 
 // Report is the stable `pace --json` document.
 type Report struct {
@@ -41,6 +41,8 @@ type GateReport struct {
 // AccountReport is one account (a label, never an email or id).
 type AccountReport struct {
 	Account string     `json:"account"`
+	Plan    string     `json:"plan"`
+	Active  bool       `json:"active"` // the account Claude Code bills to: the only one a spawn is judged by
 	Gate    GateReport `json:"gate"`
 	Windows []Pace     `json:"windows"`
 }
@@ -68,9 +70,9 @@ func (o *opts) report(at time.Time) (Report, error) {
 	}
 	r := Report{Schema: ReportSchema, At: at.UTC(), StampAt: st.At.UTC(), StampAgeSeconds: int64(st.Age(at).Seconds()),
 		StampFresh: st.Age(at) <= o.maxAge, Gate: gateReport(g.Global, at), Accounts: []AccountReport{}}
-	as := accounts(st, at, o.minElapsed, o.tolerance)
+	as := accounts(st, at, o.minElapsed, o.tolerance, o.recentFn(st))
 	for _, a := range as {
-		r.Accounts = append(r.Accounts, AccountReport{Account: a.Account, Gate: gateReport(g.Accounts[a.Account], at), Windows: a.Windows})
+		r.Accounts = append(r.Accounts, AccountReport{Account: a.Account, Plan: a.Plan, Active: a.Active, Gate: gateReport(g.Accounts[a.Account], at), Windows: a.Windows})
 	}
 	r.Aggregate = aggregate(as, at, o.minElapsed, o.tolerance)
 	if r.Aggregate == nil {
@@ -84,8 +86,12 @@ func writePaceLine(w io.Writer, indent string, p Pace) {
 	if p.ProjectedExhaustion != nil {
 		exh = p.ProjectedExhaustion.Local().Format("Mon 2006-01-02 15:04 MST")
 	}
-	fmt.Fprintf(w, "%s%-3s used %5.1f%%  elapsed %5.1f%%  rate %5.2f%%/h  sustainable %5.2f%%/h  projected %6.1f%% at reset  exhaustion: %s  [%s]\n",
-		indent, p.Window, p.UsedPercent, p.ElapsedPercent, p.RatePerHour, p.SustainablePerHour, p.ProjectedAtReset, exh, p.State)
+	recent := "unknown"
+	if p.RecentPerHour != nil {
+		recent = fmt.Sprintf("%5.2f%%/h", *p.RecentPerHour)
+	}
+	fmt.Fprintf(w, "%s%-8s used %5.1f%%  elapsed %5.1f%%  recent %s  cumulative %5.2f%%/h  sustainable %5.2f%%/h  exhaustion at recent rate: %s  [%s]\n",
+		indent, p.Window, p.UsedPercent, p.ElapsedPercent, recent, p.RatePerHour, p.SustainablePerHour, exh, p.State)
 }
 
 func gateText(g GateReport) string {
@@ -109,7 +115,11 @@ func writeReport(w io.Writer, r Report) {
 	}
 	fmt.Fprintf(w, "stamp: %s, %ds old (%s)\ngate: %s\n", r.StampAt.Local().Format("2006-01-02 15:04 MST"), r.StampAgeSeconds, fresh, gateText(r.Gate))
 	for _, a := range r.Accounts {
-		fmt.Fprintf(w, "%s (gate: %s)\n", a.Account, gateText(a.Gate))
+		role := "inactive"
+		if a.Active {
+			role = "ACTIVE"
+		}
+		fmt.Fprintf(w, "%s, plan %s, %s (gate: %s)\n", a.Account, a.Plan, role, gateText(a.Gate))
 		for _, p := range a.Windows {
 			writePaceLine(w, "  ", p)
 		}
@@ -134,7 +144,8 @@ func paceCmd(o *opts) *cobra.Command {
 		Args:  cobra.NoArgs,
 		// Every pace command needs its files: a default that cannot be resolved
 		// (no user config directory) is refused here, once, before anything runs.
-		PersistentPreRunE: func(*cobra.Command, []string) error {
+		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+			o.warn = cmd.ErrOrStderr()
 			o.resolve()
 			return o.pathErr
 		},

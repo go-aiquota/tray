@@ -151,24 +151,51 @@ same turn (`stop_hook_active`) is never blocked, to avoid a loop.
 
 ### `quotapace`: the quota pacing gate
 
-`quotapace` is a Claude Code `PreToolUse` hook on the `Agent` tool that spends
-each account's quota at the rate that empties it exactly at its reset, instead
-of hitting the wall days early. It reads the stamp `aiquota status` leaves (no
-network). Per account and per window (`5h`, `7d`) it computes the elapsed
-fraction of the window (from the reset time and the window's fixed length), the
-average rate since the window began (`used% / elapsed hours`), the sustainable
-rate (`remaining% / hours to reset`) and the projected use at the reset. It
-**refuses** the spawn (`permissionDecision: deny`, with those numbers and the
-projected exhaustion time) when the projection exceeds 100% by more than
-`--tolerance` (default 0.10) once `--min-elapsed` (default 5%) of the window has
-passed. It always allows: a `checker` agent or a `haiku` model; a prompt holding
-a line `pace-waiver: <reason>` (the reason is logged to
-`aiquota/pace-waivers.log`); no stamp, an unreadable one, or one older than
-`--max-age` (default 15 min), because a refusal is not a verdict when the gate
-cannot read. Keep the stamp fresh by running `aiquota status` periodically.
-With several accounts the gate refuses only when EVERY account is over pace (the
-fleet can spend on the one with headroom), or only the account named by
-`--account <label>`. Accounts are always labels, never an email or id.
+`quotapace` is a Claude Code `PreToolUse` hook on the `Agent` tool that paces
+the quota of **the plan in use**, so it is spent at the rate that empties it
+exactly at its reset instead of hitting the wall days early.
+
+- **Only the active account decides**: the login Claude Code bills to, which
+  `aiquota status` measures by default (its stamp lists that account with its
+  plan). It is re-read at every call, so a switch of account during the day is
+  followed at the next stamp; the history is keyed by account AND plan, so one
+  plan's readings never feed another's. The other accounts and the aggregate
+  stay in the `pace` report but never decide a spawn. With several stored
+  accounts and no Claude Code login the active one cannot be told: the hook
+  allows.
+- **Exactly the windows that plan reports**: `5h` and `7d`, plus a
+  model-specific weekly window (`Weekly Opus`, `Weekly Sonnet`, ...) when the
+  plan has one; that window judges only a spawn on its model. A window listed
+  without a value (n/a) is no constraint, and an unknown plan allows.
+- **The recent rate, not the cumulative one**: a window is over pace when the
+  slope of the readings quotapace recorded in `aiquota/pace-history.json` over
+  the last hour (`--recent`, at least `--min-span` apart) exceeds the sustainable
+  rate (`remaining% / hours to reset`, from the window's own reset) by more than
+  `--tolerance` (default 0.10), once `--min-elapsed` (5%) of the window has
+  passed. A burst that has stopped stops refusing. Fewer than two readings in the
+  lookback is `no_recent`, which allows. The percentage is an integer, so one
+  tick inside the hour reads as 1 %/h, above a 7d sustainable rate of 0.3 to
+  0.4 %/h: widen `--recent` or `--min-span` if that is too nervous. The history
+  only records when quotapace runs (a spawn, or `pace`).
+- **Advisory first, refusal only for opus**: over pace, a non-opus spawn is
+  allowed with an `additionalContext` note asking to slow down and prefer sonnet
+  or haiku sub-agents, with a concurrency derived from the plan's windows (your
+  usual `--max-agents`, default 3, scaled by sustainable / recent). An opus
+  spawn (a model containing `opus`, or the `reviewer` agent with no model) is
+  **refused** (`permissionDecision: deny`, with the numbers and the projected
+  exhaustion time) unless its prompt holds a line `pace-waiver: <reason>`
+  (logged to `aiquota/pace-waivers.log`; it then passes with the note).
+- **Fresh without a manual `aiquota status`**: a missing stamp or one older than
+  `--max-age` (default 15 min) is refreshed by the hook itself, running
+  `aiquota status --stamp <file>` (`--refresh-cmd`; default `aiquota` beside the
+  executable, else on PATH) under a single-flight lock, waiting at most
+  `--refresh-timeout` (3 s, the refresher is left to finish) and at most once per
+  `--refresh-every` (5 min, failures included; 0 disables it). No stamp after
+  that, an unreadable one or a stale one allows: a refusal is not a verdict when
+  the gate cannot read.
+
+Accounts are always labels, never an email or id. A plan's capacity in tokens is
+not derivable from a stamp (percentages only), so no such figure is shown.
 
 ```json
 {"hooks": {"PreToolUse": [{"matcher": "Agent",
@@ -176,12 +203,14 @@ fleet can spend on the one with headroom), or only the account named by
 ```
 
 Report, per account and aggregate (the mean of the accounts): `quotapace pace`,
-or `quotapace pace --json` for the stable document (`schema: 1`; fields are only
+or `quotapace pace --json` for the stable document (`schema: 2`; fields are only
 added within a version): `at`, `stamp_at`, `stamp_age_seconds`, `stamp_fresh`,
-`gate {state, until}`, `accounts[] {account, gate, windows[]}` and `aggregate[]`,
-each window being `{window, used_percent, elapsed_percent, rate_per_hour,
+`gate {state, until}`, `accounts[] {account, plan, active, gate, windows[]}` and
+`aggregate[]`, each window being `{window, model, slowdown_factor, used_percent,
+elapsed_percent, recent_per_hour (or null), rate_per_hour (cumulative),
 sustainable_per_hour, projected_at_reset_percent, projected_exhaustion (RFC 3339
-or null), resets_at, state (ok | over_pace | exhausted | too_early)}`.
+or null, at the recent rate), resets_at, state (ok | over_pace | exhausted |
+too_early | no_recent)}`.
 
 **Switch it off at will**, with no settings.json edit and no uninstall:
 
