@@ -109,16 +109,39 @@ func Write(path string, s Stamp) error {
 	if err != nil {
 		return err
 	}
+	return atomicWrite(path, ".last-status-*", append(data, '\n'))
+}
+
+// tempFile is the part of *os.File atomicWrite uses; a test substitutes one
+// whose Write or Close fails.
+type tempFile interface {
+	Name() string
+	Write([]byte) (int, error)
+	Close() error
+}
+
+// createTemp is os.CreateTemp, replaceable by a test.
+var createTemp = func(dir, pattern string) (tempFile, error) {
+	f, err := os.CreateTemp(dir, pattern)
+	if err != nil {
+		return nil, err
+	}
+	return f, nil
+}
+
+// atomicWrite stores data at path: a temp file in the same directory, then a
+// rename, mode 0600 in a 0700 directory.
+func atomicWrite(path, pattern string, data []byte) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}
-	f, err := os.CreateTemp(dir, ".last-status-*")
+	f, err := createTemp(dir, pattern)
 	if err != nil {
 		return err
 	}
 	tmp := f.Name()
-	if _, err := f.Write(append(data, '\n')); err != nil {
+	if _, err := f.Write(data); err != nil {
 		_ = f.Close()
 		_ = os.Remove(tmp)
 		return err
