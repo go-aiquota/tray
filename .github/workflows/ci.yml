@@ -43,6 +43,29 @@ jobs:
       - name: Coverage summary
         run: go tool cover -func=cover.out | tail -1
 
+  # The two hooks that gate Claude Code (quotapace, quotaclaim) and every
+  # in-module package they import: no statement may go unexecuted. covblocks
+  # counts the blocks no test entered (go tool cover rounds to one decimal, so
+  # 99.95% would pass) and fails on an empty profile. The package list is
+  # `go list -deps` of the two commands, in this module.
+  coverage:
+    name: coverage 100% (quotapace, quotaclaim)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.27.4'
+      - name: Test with coverage across the in-module dependencies
+        run: |
+          pkgs=$(go list -deps -f '{{if and (not .Standard) .Module (eq .Module.Path "github.com/go-aiquota/tray")}}{{.ImportPath}}{{end}}' ./cmd/quotapace ./cmd/quotaclaim | sort -u | paste -sd, -)
+          echo "covering: $pkgs"
+          go test -count=1 -coverpkg="$pkgs" -coverprofile=cover-gate.out $(echo "$pkgs" | tr , ' ')
+        env:
+          CGO_ENABLED: '0'
+      - name: No uncovered block
+        run: go run github.com/go-fleettools/fleettools/cmd/covblocks@v0.157.0 cover-gate.out
+
   gofmt:
     name: gofmt
     runs-on: ubuntu-latest

@@ -12,12 +12,15 @@ import "runtime/debug"
 
 var version string
 
+// readBuildInfo is debug.ReadBuildInfo, replaceable by a test.
+var readBuildInfo = debug.ReadBuildInfo
+
 // Version returns the version to report.
 func Version() string {
 	if version != "" {
 		return version
 	}
-	if bi, ok := debug.ReadBuildInfo(); ok && bi.Main.Version != "" {
+	if bi, ok := readBuildInfo(); ok && bi.Main.Version != "" {
 		return bi.Main.Version
 	}
 	return "(devel)"

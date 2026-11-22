@@ -64,30 +64,11 @@ func WriteCache(path string, e CacheEntry) error {
 	if err != nil {
 		return err
 	}
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return err
-	}
-	f, err := os.CreateTemp(dir, ".cache-*")
-	if err != nil {
-		return err
-	}
-	tmp := f.Name()
-	if _, err := f.Write(append(data, '\n')); err != nil {
-		_ = f.Close()
-		_ = os.Remove(tmp)
-		return err
-	}
-	if err := f.Close(); err != nil {
-		_ = os.Remove(tmp)
-		return err
-	}
-	if err := os.Rename(tmp, path); err != nil {
-		_ = os.Remove(tmp)
-		return err
-	}
-	return nil
+	return atomicWrite(path, ".cache-*", append(data, '\n'))
 }
+
+// goos is runtime.GOOS, replaceable by a test.
+var goos = runtime.GOOS
 
 // lockStale is how old a lock file must be before it is taken to be a dead
 // process's and removed.
@@ -116,7 +97,7 @@ func Lock(path string, wait time.Duration) (func(), error) {
 		// On Windows a lock file its holder has just removed stays "delete
 		// pending" for a moment, and creating it then fails with access denied
 		// rather than "exists": that is contention too.
-		contended := errors.Is(err, os.ErrExist) || (runtime.GOOS == "windows" && errors.Is(err, os.ErrPermission))
+		contended := errors.Is(err, os.ErrExist) || (goos == "windows" && errors.Is(err, os.ErrPermission))
 		if !contended {
 			return nil, err
 		}
