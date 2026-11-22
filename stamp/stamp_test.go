@@ -114,6 +114,9 @@ func TestReadFailures(t *testing.T) {
 	dir := t.TempDir()
 	if _, err := Read(dir); err == nil || errors.Is(err, ErrNoStamp) {
 		t.Errorf("a directory: %v", err)
+	} else if strings.Contains(err.Error(), "stamp:") {
+		// the read error itself, not the JSON error of decoding no bytes
+		t.Errorf("a directory read must fail as a read: %v", err)
 	}
 	bad := filepath.Join(dir, "bad.json")
 	if err := os.WriteFile(bad, []byte("{not json"), 0o600); err != nil {
