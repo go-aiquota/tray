@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -171,5 +172,152 @@ func TestStopHookActiveDoesNotLoop(t *testing.T) {
 	run([]string{"--stamp", filepath.Join(t.TempDir(), "none.json")}, bytes.NewReader(in), &o, &e)
 	if o.Len() != 0 {
 		t.Errorf("second pass must allow, got %q", o.String())
+	}
+}
+
+func TestUnreadableStampIsBlockedWithItsError(t *testing.T) {
+	// A directory where the stamp should be: not "no measurement", unreadable.
+	_, out := hook(t, "weekly limit hit", t.TempDir())
+	var d map[string]string
+	if err := json.Unmarshal([]byte(out), &d); err != nil || d["decision"] != "block" || !strings.Contains(d["reason"], "the stamp is unreadable (") {
+		t.Errorf("out %q", out)
+	}
+	// An unreadable stamp still lets a statement that says "unknown" through.
+	if _, out := hook(t, "The weekly limit state is unknown.", t.TempDir()); out != "" {
+		t.Errorf("hedged statement blocked: %q", out)
+	}
+}
+
+func TestBlockReasonsNameTheirCause(t *testing.T) {
+	reason := func(msg, p string) string {
+		t.Helper()
+		_, out := hook(t, msg, p)
+		var d map[string]string
+		if err := json.Unmarshal([]byte(out), &d); err != nil {
+			t.Fatalf("%q: %v", out, err)
+		}
+		return d["reason"]
+	}
+	if r := reason("weekly limit hit", filepath.Join(t.TempDir(), "none.json")); !strings.Contains(r, "with no measurement on record") {
+		t.Error(r)
+	}
+	if r := reason("weekly limit hit", put(t, stamp.Exhausted, 3*time.Hour)); !strings.Contains(r, "the last measurement is 3h0m0s old (limit 10m0s)") {
+		t.Error(r)
+	}
+	if r := reason("weekly limit hit", put(t, stamp.Unknown, time.Minute)); !strings.Contains(r, "verdict UNKNOWN") {
+		t.Error(r)
+	}
+	if r := reason("You've hit your weekly limit.", put(t, stamp.Available, time.Minute)); !strings.Contains(r, "says available") {
+		t.Error(r)
+	}
+}
+
+// With no --stamp the default path under the user config dir is read; when no
+// config dir can be resolved the claim is refused, not waved through.
+func TestDefaultStampPath(t *testing.T) {
+	cfg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", cfg)
+	t.Setenv("APPDATA", cfg)
+	t.Setenv("HOME", cfg)
+	dp, err := stamp.DefaultPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := stamp.Write(dp, stamp.Stamp{At: t0.Add(-time.Minute), Verdict: stamp.Exhausted}); err != nil {
+		t.Fatal(err)
+	}
+	if got := path(""); got != dp {
+		t.Errorf("path(\"\") = %q, want %q", got, dp)
+	}
+	if got := path("x.json"); got != "x.json" {
+		t.Errorf("path(x.json) = %q", got)
+	}
+	now = func() time.Time { return t0 }
+	in, _ := json.Marshal(map[string]any{"last_assistant_message": "weekly limit hit"})
+	var o, e bytes.Buffer
+	if code := run(nil, bytes.NewReader(in), &o, &e); code != 0 || o.Len() != 0 {
+		t.Errorf("default stamp not honoured: code %d out %q", code, o.String())
+	}
+
+	t.Setenv("XDG_CONFIG_HOME", "")
+	t.Setenv("APPDATA", "")
+	t.Setenv("HOME", "")
+	if runtime.GOOS == "plan9" {
+		return
+	}
+	if got := path(""); got != "" {
+		t.Errorf("path(\"\") = %q with no config dir", got)
+	}
+	o.Reset()
+	if code := run(nil, bytes.NewReader(in), &o, &e); code != 0 || !blocked(o.String()) {
+		t.Errorf("claim waved through with no stamp path: code %d out %q", code, o.String())
+	}
+}
+
+func TestAssistantTexts(t *testing.T) {
+	const lines = `not json
+{"type":"user","message":{"role":"user","content":"a user message"}}
+{"type":"assistant","message":{"role":"assistant","content":"plain string"}}
+{"message":{"role":"assistant","content":[{"type":"text","text":"one"},{"type":"tool_use"},{"type":"text","text":"two"}]}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use"}]}}
+{"type":"assistant","message":{"role":"assistant","content":42}}
+{"type":"assistant","message":{"role":"assistant"}}
+`
+	var got []string
+	assistantTexts(strings.NewReader(lines), func(s string) { got = append(got, s) })
+	want := []string{"plain string", "one\ntwo\n"}
+	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestLastAssistantText(t *testing.T) {
+	r := strings.NewReader(assistantLine("first") + assistantLine("second"))
+	if got := lastAssistantText(r); got != "second" {
+		t.Errorf("got %q", got)
+	}
+	if got := lastAssistantText(strings.NewReader("")); got != "" {
+		t.Errorf("got %q", got)
+	}
+}
+
+// A transcript path that cannot be opened leaves the message empty: nothing is
+// asserted, so the stop is allowed.
+func TestUnopenableTranscriptAllows(t *testing.T) {
+	in, _ := json.Marshal(map[string]any{"transcript_path": filepath.Join(t.TempDir(), "gone.jsonl")})
+	var o, e bytes.Buffer
+	if code := run([]string{"--stamp", filepath.Join(t.TempDir(), "none.json")}, bytes.NewReader(in), &o, &e); code != 0 || o.Len() != 0 {
+		t.Errorf("code %d out %q", code, o.String())
+	}
+}
+
+func TestVersionFlag(t *testing.T) {
+	var o, e bytes.Buffer
+	if code := run([]string{"--version"}, strings.NewReader(""), &o, &e); code != 0 || !strings.HasPrefix(o.String(), "quotaclaim ") || strings.TrimSpace(strings.TrimPrefix(o.String(), "quotaclaim ")) == "" {
+		t.Errorf("code %d out %q", code, o.String())
+	}
+}
+
+func TestMainExitsWithRunsCode(t *testing.T) {
+	oldExit, oldArgs, oldIn := osExit, os.Args, os.Stdin
+	t.Cleanup(func() { osExit, os.Args, os.Stdin = oldExit, oldArgs, oldIn })
+	in, err := os.Open(os.DevNull)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer in.Close()
+	os.Stdin = in
+	os.Args = []string{"quotaclaim", "--version"}
+	code := -1
+	osExit = func(c int) { code = c }
+	main()
+	if code != 0 {
+		t.Errorf("exit code %d", code)
+	}
+	// An empty stdin is not hook JSON: a non-blocking error, exit 1.
+	os.Args = []string{"quotaclaim"}
+	main()
+	if code != 1 {
+		t.Errorf("exit code %d, want 1", code)
 	}
 }
