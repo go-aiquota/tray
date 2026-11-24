@@ -195,10 +195,10 @@ func RootCmd() *cobra.Command {
 
 func statusCmd() *cobra.Command {
 	var (
-		acct, format, provider, stampPath string
-		debug, overlay, raw, fresh        bool
-		warn, critical, bands, fver, rver int
-		timeout, minInterval, maxStale    time.Duration
+		acct, format, provider, stampPath, model string
+		debug, overlay, raw, fresh               bool
+		warn, critical, bands, fver, rver        int
+		timeout, minInterval, maxStale           time.Duration
 	)
 	c := &cobra.Command{
 		Use:   "status",
@@ -241,6 +241,9 @@ for the quotaclaim hook, whatever the verdict.`,
 				_, err = cmd.OutOrStdout().Write(b)
 				return err
 			}
+			if model != "" && format == "statusbar" {
+				return errors.New("--model: only with -o text or json")
+			}
 			if overlay {
 				claudeCodeView = "overlay"
 			}
@@ -272,6 +275,20 @@ for the quotaclaim hook, whatever the verdict.`,
 				// Without a receipt the gate cannot be satisfied: say so loudly.
 				fmt.Fprintf(cmd.ErrOrStderr(), "aiquota: cannot write stamp: %s\n", clean(err))
 			}
+			if model != "" {
+				ans := answerFor(st, model)
+				if format == "json" {
+					enc := json.NewEncoder(cmd.OutOrStdout())
+					enc.SetIndent("", "  ")
+					err = enc.Encode(modelStamp{Stamp: st, Model: ans})
+				} else {
+					renderModel(cmd.OutOrStdout(), st, ans)
+				}
+				if err != nil {
+					return err
+				}
+				return codeError{code: exitCode(ans.Verdict)}
+			}
 			if format == "statusbar" {
 				err = renderStatusBar(cmd.OutOrStdout(), st, warn, critical, bands, fver, rver)
 			} else {
@@ -285,6 +302,7 @@ for the quotaclaim hook, whatever the verdict.`,
 	}
 	c.Flags().StringVar(&acct, "account", "", "only this account (id or label)")
 	c.Flags().StringVarP(&format, "output", "o", "text", "output format: text, json, or statusbar (one JSON line: text, tooltip, level, for an editor status bar)")
+	c.Flags().StringVar(&model, "model", "", "answer for ONE model on the active login (case-insensitive, e.g. sonnet): the limits that apply to it, from the session, weekly and model-scoped windows; a plan with no window of its own for it says \"no separate limit\"; exit 0 available, 1 exhausted, 3 unknown")
 	c.Flags().IntVar(&warn, "warn", 75, "statusbar: percent from which the level is warn")
 	c.Flags().IntVar(&critical, "critical", 90, "statusbar: percent from which the level is error")
 	c.Flags().IntVar(&rver, "render", 0, "statusbar: print the generic render description (1) the VS Code extension draws as it is: items with text, tooltip, colour, background, priority offset, alignment and click action; 0 keeps --format-version")
@@ -424,7 +442,7 @@ func windowOf(acct string, w *quotapb.QuotaWindow) stamp.Window {
 	switch {
 	case w.Unit == unitNotAvailable:
 		out.Verdict = stamp.NotAvailable
-		out.Note = "the provider lists this window without a value (utilization is null)"
+		out.Note = noSeparateLimit + ": governed by the session and weekly windows (the provider lists it without a value)"
 	case w.Limit <= 0:
 		out.Verdict = stamp.Unknown
 		out.Note = "provider gave no limit"
@@ -499,7 +517,7 @@ func render(w io.Writer, st stamp.Stamp, format string) error {
 				line += "   Resets " + panelReset(x.ResetsAtUnix, x.Label, now())
 			}
 		} else if x.Verdict == stamp.NotAvailable {
-			line += "   –   not available"
+			line += "   –   " + noSeparateLimit
 		} else {
 			line += "   ?"
 		}

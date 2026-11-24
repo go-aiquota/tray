@@ -75,10 +75,23 @@ By default `aiquota status` shows **every window the usage endpoint returns**,
 not only the rows of Claude Code's panel: known windows keep the panel's labels
 and order (Opus included), unknown ones get a label derived from their key, and
 `limits[]` entries are added without duplicating the top-level windows. A window
-the endpoint lists without a value is `–` (verdict `n/a`, never a number, and
-outside the overall verdict). `--overlay` reproduces the panel's rows exactly,
+the endpoint lists without a value is `–   no separate limit on this plan`
+(verdict `n/a`, never a number, and outside the overall verdict): the plan has no
+window of its own for that model, which is governed by the session and weekly
+windows. It does NOT mean blocked or unmeasured. `--overlay` reproduces the panel's rows exactly,
 for the equality check; `-o json --raw` prints the usage response as received
 (it holds no credential) so you can see everything Claude returns.
+
+**Can I use model X right now?** `aiquota status --model sonnet` (case-insensitive)
+answers for that one model on the active login: the session and weekly windows
+plus the window scoped to the model when the plan has one, each with its %, reset
+(local, 24 h), then the account, plan and the reading's time. Exit **0**
+available, **1** exhausted (names the limit and its reset), **3** UNKNOWN (could
+not read). A plan with no window of its own for the model prints
+`no separate sonnet limit on this plan` and is available when the session and
+weekly windows are. `-o json` adds a `model` object (verdict, `scoped`, `limits`,
+`blocking`, `reason`) to the stamp. Never relay an old 429 as "model X is
+blocked": run this.
 
 **One reading for every process.** The usage endpoint rate limits, and a machine
 runs several editor windows, the CLI and the `quotaclaim` gate. They share one
