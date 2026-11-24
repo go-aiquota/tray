@@ -200,7 +200,7 @@ func TestNotAvailableWindowIsDashedAndNeverANumber(t *testing.T) {
 		t.Errorf("%q / %q", sb.Text, sb.Tooltip)
 	}
 	_, text, _ := runStatus(t, f, "status")
-	if !strings.Contains(text, "Weekly Opus") || !strings.Contains(text, "not available   [N/A]") {
+	if !strings.Contains(text, "Weekly Opus") || !strings.Contains(text, "no separate limit on this plan   [N/A]") {
 		t.Errorf("text output:\n%s", text)
 	}
 }
