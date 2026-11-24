@@ -6,6 +6,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -138,6 +139,22 @@ func TestModelJSONCarriesTheAnswer(t *testing.T) {
 func TestModelRefusedWithStatusbar(t *testing.T) {
 	var o, e strings.Builder
 	if code := run([]string{"status", "--model", "sonnet", "-o", "statusbar"}, &o, &e); code != 2 || !strings.Contains(e.String(), "--model: only with") {
+		t.Fatalf("code %d %q", code, e.String())
+	}
+}
+
+type failWriter struct{}
+
+func (failWriter) Write([]byte) (int, error) { return 0, errors.New("disk full") }
+
+// A write error on the answer is a usage-class failure, never a verdict.
+func TestModelJSONWriteErrorIsNotAVerdict(t *testing.T) {
+	now = func() time.Time { return t10 }
+	f := teamFable()
+	newBackend = func() (backend, error) { return f, nil }
+	var e strings.Builder
+	code := run([]string{"status", "--model", "sonnet", "-o", "json", "--stamp", filepath.Join(t.TempDir(), "s.json")}, failWriter{}, &e)
+	if code != 2 || !strings.Contains(e.String(), "disk full") {
 		t.Fatalf("code %d %q", code, e.String())
 	}
 }
