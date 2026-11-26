@@ -3,7 +3,13 @@
 
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/go-aiquota/tray/stamp"
+)
 
 // Negatives: gateway / API / budget vocabulary and ordinary engineering text.
 // None of these is a claim about Claude's own usage limits.
@@ -76,6 +82,60 @@ var positives = []pos{
 	{"Both agents stopped on the 5-hour usage limit last night.", classGeneral},
 	{"Le quota Claude Max est à 40 %.", classGeneral},
 	{"Claude's usage limit is not a problem today.", classGeneral},
+	// French relays (incident 2026-11-26, go-vcs).
+	{"Deux agents sont arrêtés par la limite des 5 heures de Sonnet jusqu'à **19:30**. Je ne peux pas les relancer avant 19:30.", classExhausted},
+	{"Deux agents sont arrêtés par la limite des 5 heures de Sonnet jusqu'à 19:30", classExhausted},
+	{"Les agents sont bloqués jusqu'à 19:30 par la limite de 5 heures.", classExhausted},
+	{"La limite de 5 heures est atteinte.", classExhausted},
+	{"La limite hebdomadaire est atteinte pour Sonnet.", classExhausted},
+	{"Le quota Sonnet est épuisé.", classExhausted},
+	{"La limite de 5 heures de Sonnet est là. Je ne peux pas relancer avant 19:30.", classExhausted},
+	{"La limite de Sonnet est là, l'agent reprendra à 19h30.", classExhausted},
+}
+
+// Negatives specific to the French table.
+var negativesFR = []string{
+	"Nous avons une limite de 64 dépôts par organisation.",
+	"La limite de 5 hôtes est atteinte dans le cluster.",
+	"Le build reprend à 14h après la fusion.",
+	"Je ne peux pas relancer avant 19:30 car le serveur de CI redémarre.",
+	"Le quota de disque est atteint sur le volume.",
+	"Bloqué jusqu'à 18:00 par la revue de code.",
+}
+
+func TestMatcherNegativesFR(t *testing.T) {
+	for _, m := range negativesFR {
+		if c, hit, _ := classify(m); c != classNone {
+			t.Errorf("false positive %q on %q", hit, m)
+		}
+	}
+}
+
+// The French incident sentence must be REFUSED when a fresh measurement says
+// AVAILABLE, and allowed when the fresh measurement says EXHAUSTED.
+func TestFrenchRelayRefusedWhenAvailable(t *testing.T) {
+	msg := "Deux agents sont arrêtés par la limite des 5 heures de Sonnet jusqu'à **19:30**. Je ne peux pas les relancer avant 19:30."
+	if c, _, _ := classify(msg); c != classExhausted {
+		t.Fatalf("class %d, want exhausted", c)
+	}
+	if code, out := hook(t, msg, put(t, stamp.Available, time.Minute)); code != 0 || !strings.Contains(out, "says available") {
+		t.Errorf("AVAILABLE stamp must refuse the French relay: code %d out %q", code, out)
+	}
+	if _, out := hook(t, msg, put(t, stamp.Exhausted, time.Minute)); out != "" {
+		t.Errorf("EXHAUSTED fresh stamp backs the claim, got %q", out)
+	}
+}
+
+func FuzzClassify(f *testing.F) {
+	for _, p := range positives {
+		f.Add(p.msg)
+	}
+	for _, n := range negativesFR {
+		f.Add(n)
+	}
+	f.Fuzz(func(t *testing.T, s string) {
+		classify(s) // must not panic or hang
+	})
 }
 
 func TestMatcherNegatives(t *testing.T) {
