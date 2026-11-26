@@ -47,7 +47,7 @@ var generalRes = compile(
 	`weekly (usage )?limit`,
 	`limite hebdomadaire`,
 	`5[- ]?hours? (limit|session|window)`,
-	`limite (de|des) 5 ?h`,
+	`limite (de|des) 5 ?h(eures?)?([^\p{L}]|$)`,
 	`usage limit`,
 	`limite d'usage`,
 	`(opus|sonnet|haiku)( \d[\d.]*)? (usage |weekly )?limit`,
@@ -96,8 +96,9 @@ func classify(msg string) (class, string, string) {
 	if harnessMessage.MatchString(msg) && !proseInHarness.MatchString(msg) { // the WHOLE message is the harness line
 		return best, hit, sent
 	}
+	own := resetNeedsOwn.MatchString(msg)
 	for _, s := range sentenceSplit.Split(msg, -1) {
-		c, h := classifySentence(s)
+		c, h := classifySentence(s, own)
 		if c > best {
 			best, hit, sent = c, h, s
 		}
@@ -127,14 +128,18 @@ var (
 	presentMarker = regexp.MustCompile(`(?i)\b(still|now|until|till|again|blocked|cannot|can'?t|encore|toujours|maintenant|jusqu\w*|bloqu\w*)\b`)
 )
 
-func classifySentence(s string) (class, string) {
+func classifySentence(s string, msgOwn bool) (class, string) {
 	if negated.MatchString(s) || negatedFR.MatchString(s) {
 		return classNone, ""
 	}
 	if domain.MatchString(s) && !anchor.MatchString(s) {
 		return classNone, ""
 	}
-	if h, ok := firstMatch(exhaustedRes, s); ok {
+	h, ok := firstMatch(exhaustedRes, s)
+	if !ok {
+		h, ok = firstRule(exhaustedFRCompiled, s, msgOwn)
+	}
+	if ok {
 		if (strings.HasPrefix(strings.ToLower(h), "blocked") || strings.HasPrefix(strings.ToLower(h), "bloqu")) && !blockedContext.MatchString(s) {
 			// "blocked until the PR merges": not a usage claim.
 		} else if pastMarker.MatchString(s) && !presentMarker.MatchString(s) {
